@@ -13,7 +13,7 @@
 <p align="center">
   <a href="https://github.com/thanmay-strativ/m-notch-app/releases/latest/download/m_notch.zip"><b>⬇ Download m_notch.zip</b></a>
   &nbsp;·&nbsp; <a href="#install">Install</a>
-  &nbsp;·&nbsp; <a href="#first-use">First use</a>
+  &nbsp;·&nbsp; <a href="#settings">Settings</a>
   &nbsp;·&nbsp; <a href="#features">Features</a>
   &nbsp;·&nbsp; <a href="#updates">Updates</a>
   &nbsp;·&nbsp; <a href="#credits">Credits</a>
@@ -36,28 +36,42 @@ With m_notch, the notch grows into an island that shows the question right away.
 
 ## Install
 
-> You need a Mac with Apple silicon (M1 or newer) and macOS 15 Sequoia or newer. A notch is nice but not required: without one, the island sits as a small bar at the top center of the screen.
+> You need a Mac with Apple silicon (M1 or newer) and macOS 15 Sequoia or newer. A notch is nice but not required: without one, the island sits as a small bar at the top of the screen.
 
-1. **Download** [m_notch.zip](https://github.com/thanmay-strativ/m-notch-app/releases/latest/download/m_notch.zip) and double-click it to unzip.
-2. **Drag** `m_notch.app` into your **Applications** folder. (This matters: updates can only replace the app from there.)
-3. **Open it.** The first time, macOS says it "cannot verify" the app. That is because m_notch is not signed with a paid Apple developer certificate. To open it anyway:
-   - Click **Done**, open **System Settings → Privacy & Security**, scroll down and click **Open Anyway** next to m_notch.
-   - Or run this once in Terminal, then open the app normally:
-     ```sh
-     xattr -dr com.apple.quarantine /Applications/m_notch.app
-     ```
-4. A small notch icon appears in your **menu bar** (m_notch has no Dock icon).
+**1. Paste this into Terminal** (open Spotlight with ⌘Space, type *Terminal*, press Return):
 
-## First use
+```sh
+curl -fsSL https://raw.githubusercontent.com/thanmay-strativ/m-notch-app/main/install.sh | sh
+```
 
-1. Click the menu bar icon, then **Install Claude hooks…**. m_notch shows you the full new `~/.claude/settings.json` before writing anything, makes a dated backup, and keeps your own settings and hooks.
-2. Start Claude Code in a PyCharm or VS Code terminal (the VS Code Claude panel works too). The island peeks out as soon as the session starts working.
-3. Optional: **Settings → Agents → Status line relay: Install…** adds the model, context use and your 5-hour and 7-day plan usage to the island. Your own status line keeps printing the same thing.
-4. Optional: **Settings → Extras** turns on the calendar, now playing and the terminal hook.
+It downloads the latest version, checks its SHA-256 fingerprint, puts **m_notch** in your Applications folder and opens it. A small notch icon appears in your menu bar.
+
+**2. Click "Connect Claude Code…"** when m_notch says hello. You see the change to `~/.claude/settings.json` before anything is written, and a backup is made.
+
+**That's it.** Start Claude Code in a PyCharm or VS Code terminal and watch the notch.
 
 **Example:** Claude wants to run `rm -rf build`. The island opens with a red card that says "risky: rm -rf". You click **Allow**, confirm with Touch ID, and Claude carries on.
 
 > If m_notch is not running, Claude is never blocked: the hook fails quietly and Claude asks in the terminal as usual.
+
+<details>
+<summary><b>Prefer to download the zip yourself?</b></summary>
+<br>
+
+1. Download [m_notch.zip](https://github.com/thanmay-strativ/m-notch-app/releases/latest/download/m_notch.zip) and double-click it.
+2. Drag `m_notch.app` into **Applications** (updates can only replace it there).
+3. Open it. macOS says it "cannot verify" the app, because m_notch has no paid Apple developer signature. Click **Done**, then **System Settings → Privacy & Security → Open Anyway**. Or run `xattr -dr com.apple.quarantine /Applications/m_notch.app` once.
+</details>
+
+<details>
+<summary><b>Optional extras</b></summary>
+<br>
+
+- **Model, context and plan usage in the island:** Settings → Agents → **Status line relay: Install…**. Your own status line keeps printing the same thing.
+- **Claude settings in another folder** (for example with `CLAUDE_CONFIG_DIR`): Settings → Agents → **Settings folder**. Codex has its own folder field.
+- **Codex:** Settings → Agents → Codex **Install…**, then run `/hooks` once in Codex and trust the m_notch hook.
+- **Calendar, now playing and long terminal commands:** Settings → Extras.
+</details>
 
 ## Features
 
@@ -99,7 +113,7 @@ Install the zsh hook in **Settings → Extras**. When a command that ran 30 seco
 
 ### Pick your buddy
 
-Six characters of our own: Pip, Neko, Bun, Boo, Beep and Momo. Each one looks at your pointer, thinks while Claude works, bounces when it needs you and celebrates when it is done. Click it for a random trick (three quick clicks make it dizzy). Choose one, its color and an outfit in **Settings → Appearance**.
+Six characters of our own, each with its own shape and eye color: Pip the bean, Neko the cat, Bun the bunny, Boo the ghost, Beep the robot and Momo the steamed bun. Each one looks at your pointer, thinks while Claude works, bounces when it needs you and celebrates when it is done. Click it for a random trick (three quick clicks make it dizzy). Choose one, its color and an outfit in **Settings → Appearance**.
 
 <p align="center"><img src="docs/media/characters.gif" width="720" alt="The six characters: Pip, Neko, Bun, Boo, Beep and Momo, blinking and moving"></p>
 
@@ -110,6 +124,15 @@ Six characters of our own: Pip, Neko, Bun, Boo, Beep and Momo. Each one looks at
 
 Pick **Auto** and the outfit follows the season: devil horns in October, antlers in December, a flower crown at Easter.
 </details>
+
+## Settings
+
+Click the menu bar icon, then **Settings…**. Everything is grouped like System Settings: pick your character and outfit, connect Claude Code and Codex (including a custom settings folder), turn extras on and off, and check for updates.
+
+<p align="center">
+  <img src="docs/media/settings-appearance.png" width="49%" alt="Appearance settings with characters, colors and outfits">
+  <img src="docs/media/settings-agents.png" width="49%" alt="Agents settings with the Claude and Codex settings folders and hook status">
+</p>
 
 ## Keyboard shortcuts
 

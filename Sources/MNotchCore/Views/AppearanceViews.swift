@@ -1,6 +1,6 @@
 import SwiftUI
 
-/// Top of the Appearance page: the chosen character, large and live, with how to play with it.
+/// Top of the Appearance page: the chosen character, small and live, with its name and outfit.
 struct CharacterHero: View {
     let design: CharacterDesign
     let color: Preferences.CharacterColor
@@ -8,56 +8,43 @@ struct CharacterHero: View {
 
     private var outfitLine: String {
         let worn = Outfit.resolved(selection: outfit, date: Date(), calendar: .current)
-        if worn == .none { return outfit == .auto ? "No outfit this season" : "No outfit" }
-        return outfit == .auto ? "Wearing \(worn.displayName.lowercased()) (seasonal)" : "Wearing \(worn.displayName.lowercased())"
+        if worn == .none { return outfit == .auto ? "no outfit this season" : "no outfit" }
+        return outfit == .auto ? "wearing \(worn.displayName.lowercased()) (seasonal)" : "wearing \(worn.displayName.lowercased())"
     }
 
     var body: some View {
-        HStack(spacing: 20) {
-            CharacterPreview(design: design, color: color, outfit: outfit, width: 120, interactive: true)
-                .frame(width: 180, height: 190)
-                .background(
-                    ZStack {
-                        RoundedRectangle(cornerRadius: 18, style: .continuous)
-                            .fill(LinearGradient(colors: [AppearanceStyle.tileTop, AppearanceStyle.tileBottom], startPoint: .top, endPoint: .bottom))
-                        Circle()
-                            .fill(RadialGradient(colors: [Color(hex: color.gradientHex.top).opacity(0.35), .clear],
-                                                 center: .center, startRadius: 0, endRadius: 80))
-                            .offset(y: 20)
-                    }
-                )
-                .overlay(RoundedRectangle(cornerRadius: 18, style: .continuous).strokeBorder(Color.white.opacity(0.08)))
-            VStack(alignment: .leading, spacing: 6) {
-                Text(verbatim: design.title).font(.system(size: 24, weight: .bold, design: .rounded))
-                Text(verbatim: design.tagline.prefix(1).uppercased() + design.tagline.dropFirst()).foregroundColor(.secondary)
-                Text(verbatim: outfitLine).foregroundColor(.secondary)
-                Divider().frame(width: 180).padding(.vertical, 4)
-                Group {
-                    Label("Hover it: it looks at you", systemImage: "eye")
-                    Label("Click it: a random reaction", systemImage: "hand.tap")
-                    Label("Three quick clicks: dizzy", systemImage: "tornado")
-                }
-                .font(.system(size: 11))
-                .foregroundColor(.secondary)
+        HStack(spacing: 14) {
+            CharacterPreview(design: design, color: color, outfit: outfit, width: 50, headroom: 0.4, interactive: true)
+                .frame(width: 76, height: 76)
+                .background(CharacterTileBackground(glow: Color(hex: color.gradientHex.top), cornerRadius: 16))
+            VStack(alignment: .leading, spacing: 3) {
+                Text(verbatim: design.title).font(.system(size: 17, weight: .semibold, design: .rounded))
+                Text(verbatim: design.tagline.prefix(1).uppercased() + design.tagline.dropFirst() + ", " + outfitLine)
+                    .foregroundStyle(.secondary)
+                Text(verbatim: "Hover it and it looks at you. Click it for a trick.")
+                    .font(.caption)
+                    .foregroundStyle(.tertiary)
             }
             Spacer(minLength: 0)
         }
+        .padding(.vertical, 2)
     }
 }
 
-/// Six `PreviewCard`s per row: the six characters fit one row, the twelve outfits two.
-struct PreviewGrid<Content: View>: View {
+/// Small tiles that wrap to the width of the settings page.
+struct ChoiceGrid<Content: View>: View {
     @ViewBuilder let content: () -> Content
 
     var body: some View {
-        LazyVGrid(columns: Array(repeating: GridItem(.fixed(80), spacing: 10), count: 6), alignment: .leading, spacing: 12) {
+        LazyVGrid(columns: [GridItem(.adaptive(minimum: 68, maximum: 80), spacing: 10)], alignment: .leading, spacing: 12) {
             content()
         }
+        .padding(.vertical, 4)
     }
 }
 
 /// One choice in an Appearance grid: a small live preview of the character as it would look, and a name.
-struct PreviewCard: View {
+struct ChoiceTile: View {
     let title: String
     let help: String
     let design: CharacterDesign
@@ -69,38 +56,94 @@ struct PreviewCard: View {
 
     var body: some View {
         Button(action: action) {
-            VStack(spacing: 6) {
-                CharacterPreview(design: design, color: color, outfit: outfit, width: 54, headroom: 0.3, framesPerSecond: 30)
-                    .frame(width: 76, height: 80)
-                    .background(RoundedRectangle(cornerRadius: 14, style: .continuous)
-                        .fill(LinearGradient(colors: [AppearanceStyle.tileTop, AppearanceStyle.tileBottom], startPoint: .top, endPoint: .bottom)))
-                    .overlay(RoundedRectangle(cornerRadius: 14, style: .continuous)
-                        .strokeBorder(isOn ? Color.accentColor : Color.white.opacity(isHovered ? 0.25 : 0.08), lineWidth: isOn ? 2 : 1))
-                    .overlay(alignment: .topTrailing) {
-                        if isOn {
-                            Image(systemName: "checkmark.circle.fill")
-                                .font(.system(size: 14))
-                                .foregroundStyle(.white, Color.accentColor)
-                                .padding(5)
-                        }
-                    }
-                    .scaleEffect(isHovered && !isOn ? 1.03 : 1)
+            VStack(spacing: 5) {
+                CharacterPreview(design: design, color: color, outfit: outfit, width: 38, headroom: 0.4, framesPerSecond: 24)
+                    .frame(width: 60, height: 58)
+                    .background(CharacterTileBackground(glow: nil, cornerRadius: 12))
+                    .overlay(RoundedRectangle(cornerRadius: 12, style: .continuous)
+                        .strokeBorder(isOn ? Color.accentColor : Color.primary.opacity(isHovered ? 0.3 : 0.08), lineWidth: isOn ? 2 : 1))
+                    .scaleEffect(isHovered && !isOn ? 1.04 : 1)
                 Text(verbatim: title)
-                    .font(.system(size: 11, weight: isOn ? .semibold : .regular))
-                    .foregroundColor(isOn ? .primary : .secondary)
+                    .font(.system(size: 10.5, weight: isOn ? .semibold : .regular))
+                    .foregroundStyle(isOn ? .primary : .secondary)
                     .multilineTextAlignment(.center)
                     .lineLimit(2)
-                    .frame(width: 80, height: 28, alignment: .top)
+                    .frame(width: 72, height: 28, alignment: .top)
             }
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
         .onHover { hovering in withAnimation(.easeOut(duration: 0.12)) { isHovered = hovering } }
         .help(help)
+        .animation(.spring(response: 0.3, dampingFraction: 0.8), value: isOn)
     }
 }
 
-enum AppearanceStyle {
-    static let tileTop = Color(hex: "#26282E")
-    static let tileBottom = Color(hex: "#111215")
+/// Dark rounded backdrop for live characters, the same in light and dark mode so they look like they do in the notch.
+struct CharacterTileBackground: View {
+    let glow: Color?
+    let cornerRadius: CGFloat
+
+    var body: some View {
+        ZStack {
+            RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
+                .fill(LinearGradient(colors: [Color(hex: "#2A2C33"), Color(hex: "#121317")], startPoint: .top, endPoint: .bottom))
+            if let glow {
+                Circle()
+                    .fill(RadialGradient(colors: [glow.opacity(0.35), .clear], center: .center, startRadius: 0, endRadius: 34))
+                    .offset(y: 8)
+            }
+        }
+        .clipShape(RoundedRectangle(cornerRadius: cornerRadius, style: .continuous))
+    }
+}
+
+/// A color choice for the settings window: a ring in the accent color marks the chosen one.
+struct SettingsSwatch: View {
+    let color: Preferences.CharacterColor
+    let isOn: Bool
+    let action: () -> Void
+
+    var body: some View {
+        Button(action: action) {
+            Circle()
+                .fill(LinearGradient(colors: [Color(hex: color.gradientHex.top), Color(hex: color.gradientHex.bottom)],
+                                     startPoint: .topTrailing, endPoint: .bottomLeading))
+                .frame(width: 20, height: 20)
+                .overlay(Circle().strokeBorder(Color.primary.opacity(0.12)))
+                .padding(3)
+                .overlay(Circle().strokeBorder(isOn ? Color.accentColor : .clear, lineWidth: 2))
+        }
+        .buttonStyle(.plain)
+        .help(color.title)
+        .animation(.easeOut(duration: 0.15), value: isOn)
+    }
+}
+
+/// A small colored capsule with a dot: "OK", "not installed", "listening on 127.0.0.1:47823".
+struct StatusPill: View {
+    enum Tone { case good, warning, bad, neutral }
+
+    let text: String
+    let tone: Tone
+
+    private var color: Color {
+        switch tone {
+        case .good: return Palette.done
+        case .warning: return Palette.needsYou
+        case .bad: return .red
+        case .neutral: return .secondary
+        }
+    }
+
+    var body: some View {
+        HStack(spacing: 5) {
+            Circle().fill(color).frame(width: 6, height: 6)
+            Text(verbatim: text).font(.system(size: 11, weight: .medium)).lineLimit(1).truncationMode(.middle)
+        }
+        .padding(.horizontal, 8)
+        .padding(.vertical, 3)
+        .background(Capsule().fill(color.opacity(0.14)))
+        .help(text)
+    }
 }

@@ -31,35 +31,60 @@ enum CharacterDesign: String, CaseIterable, Sendable {
     /// Superellipse exponent of the body outline: 2 is an ellipse, higher is boxier.
     var bodyExponent: CGFloat {
         switch self {
-        case .pip, .bun, .boo: return 2.3
-        case .neko: return 2.4
-        case .beep: return 3.6
-        case .momo: return 2.5
+        case .pip, .bun: return 2.0
+        case .neko: return 2.2
+        case .boo: return 2.3
+        case .beep: return 4.2
+        case .momo: return 3.0
         }
     }
 
-    /// How much wider the bottom is than the top, like a dumpling.
+    /// How much wider the bottom is than the top: Pip is an upright bean.
     var bottomFlare: CGFloat {
         switch self {
-        case .pip, .bun: return 0.07
-        case .momo: return 0.14
-        case .neko, .boo, .beep: return 0
+        case .pip: return 0.1
+        case .neko: return 0.04
+        case .bun, .boo, .beep, .momo: return 0
         }
     }
 
-    /// Big eyes for every character; Beep's screen eyes are a little smaller to fit its visor.
-    var eyeScale: CGFloat { self == .beep ? 1.9 : 2.2 }
+    /// Each character's own proportions, on top of the engine's base width and height.
+    var bodyScale: (width: CGFloat, height: CGFloat) {
+        switch self {
+        case .pip: return (0.94, 1.08)
+        case .neko: return (1.04, 0.94)
+        case .bun: return (0.96, 1.02)
+        case .boo: return (1, 1)
+        case .beep: return (1, 1.04)
+        case .momo: return (1.06, 1)
+        }
+    }
+
+    /// Beep's screen eyes fit its visor; Momo has small eyes under its pleats.
+    var eyeScale: CGFloat {
+        switch self {
+        case .beep: return 1.9
+        case .momo: return 1.8
+        case .pip, .neko, .bun, .boo: return 2.2
+        }
+    }
 
     var hasSparkleEyes: Bool { self != .beep }
 
-    var restingBlush: CGFloat {
+    /// Iris colors, dark at the top and light at the bottom. Beep's glowing screen eyes have none.
+    var iris: (dark: Color, light: Color)? {
         switch self {
-        case .pip, .neko, .bun: return 0.4
-        case .boo: return 0.25
-        case .momo: return 0.5
-        case .beep: return 0
+        case .pip: return (Color(hex: "#24683C"), Color(hex: "#79CF84"))
+        case .neko: return (Color(hex: "#99560A"), Color(hex: "#F4B740"))
+        case .bun: return (Color(hex: "#7A2852"), Color(hex: "#E27BA8"))
+        case .boo: return (Color(hex: "#3F3394"), Color(hex: "#A596F5"))
+        case .momo: return (Color(hex: "#5A3214"), Color(hex: "#C28447"))
+        case .beep: return nil
         }
     }
+
+    /// Only Bun keeps a hint of pink cheeks at rest; everyone still blushes in reactions.
+    var restingBlush: CGFloat { self == .bun ? 0.2 : 0 }
 
     /// Sprout, ears, antenna or knot: these turn with the body during a roll and hide under hats that cover the head.
     var hasHeadPart: Bool { self != .boo }
@@ -132,7 +157,34 @@ extension BotEngine {
 
     /// Body outline for the current design; nil means the engine's own superellipse.
     func designBodyPath(rx: CGFloat, ry: CGFloat) -> Path? {
-        guard design == .boo else { return nil }
+        switch design {
+        case .boo: return ghostPath(rx: rx, ry: ry)
+        case .momo: return dumplingPath(rx: rx, ry: ry)
+        case .pip, .neko, .bun, .beep: return nil
+        }
+    }
+
+    /// A steamed bun: flat bottom with soft corners, a dome that rises to a gathered peak where the pleats meet.
+    private func dumplingPath(rx: CGFloat, ry: CGFloat) -> Path {
+        let flatExponent = 2 / design.bodyExponent
+        let domeExponent: CGFloat = 2 / 2.1
+        var path = Path()
+        let steps = 96
+        for step in 0...steps {
+            let angle = CGFloat(step) / CGFloat(steps) * .pi * 2
+            let isBottom = sin(angle) >= 0
+            let exponent = isBottom ? flatExponent : domeExponent
+            let x = rx * signedPower(cos(angle), exponent)
+            var y = ry * signedPower(sin(angle), exponent) * (isBottom ? 0.86 : 1)
+            if !isBottom { y -= ry * 0.2 * exp(-pow(x / (rx * 0.24), 2)) }
+            let point = CGPoint(x: x, y: y + ry * 0.06)
+            if step == 0 { path.move(to: point) } else { path.addLine(to: point) }
+        }
+        path.closeSubpath()
+        return path
+    }
+
+    private func ghostPath(rx: CGFloat, ry: CGFloat) -> Path {
         let exponent = 2 / design.bodyExponent
         let time = CGFloat(CACurrentMediaTime())
         let width = rx * 0.92
@@ -448,8 +500,6 @@ extension BotEngine {
                 smile.addQuadCurve(to: CGPoint(x: radius * 0.08, y: -radius * 0.01), control: CGPoint(x: 0, y: radius * 0.15))
                 smile.closeSubpath()
                 context.fill(smile, with: .color(ink))
-                context.fill(Path(ellipseIn: CGRect(x: -radius * 0.035, y: radius * 0.035, width: radius * 0.07, height: radius * 0.035)),
-                             with: .color(DesignPalette.nose))
             case .pip, .beep:
                 var smile = Path()
                 smile.move(to: CGPoint(x: -radius * 0.07, y: 0))
@@ -486,6 +536,25 @@ extension BotEngine {
                                style: StrokeStyle(lineWidth: lineWidth * 0.8, lineCap: .round))
             }
         }
+    }
+
+    /// m_notch's eye: on the dark rim the engine drew, a colored iris that is lighter at the bottom, a round pupil
+    /// and one glint. Beep, the small island and nearly closed eyes keep the plain glossy eye.
+    func drawDesignEye(_ context: inout GraphicsContext, width: CGFloat, height: CGFloat, ink: Color, radius: CGFloat) {
+        guard let iris = design.iris, !isMini, radius > 9, height > width * 0.6 else {
+            drawEyeSparkle(&context, width: width, height: height, radius: radius)
+            return
+        }
+        let irisRect = CGRect(x: -width * 0.36, y: -height * 0.32, width: width * 0.72, height: height * 0.76)
+        context.fill(Path(roundedRect: irisRect, cornerRadius: min(irisRect.width, irisRect.height) / 2),
+                     with: .linearGradient(Gradient(colors: [iris.dark, iris.light]),
+                                           startPoint: CGPoint(x: 0, y: irisRect.minY), endPoint: CGPoint(x: 0, y: irisRect.maxY)))
+        let pupil = width * 0.19
+        context.fill(Path(ellipseIn: CGRect(x: -pupil, y: height * 0.06 - pupil * 1.15, width: pupil * 2, height: pupil * 2.3)),
+                     with: .color(ink))
+        let glint = width * 0.13
+        context.fill(Path(ellipseIn: CGRect(x: -width * 0.2 - glint, y: -height * 0.2 - glint, width: glint * 2, height: glint * 2)),
+                     with: .color(.white.opacity(0.95)))
     }
 
     /// Two white glints that make the eyes look glossy. Skipped when the eye is nearly closed or tiny.

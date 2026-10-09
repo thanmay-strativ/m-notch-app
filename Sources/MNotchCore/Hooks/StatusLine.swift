@@ -86,9 +86,9 @@ public enum StatusLineRelay {
         return String(command[range.upperBound...])
     }
 
-    public static func status(port: UInt16, token: String, home: String = NSHomeDirectory()) -> HookStatus {
+    public static func status(port: UInt16, token: String, folder: String) -> HookStatus {
         do {
-            let (settings, _) = try SettingsFileWriter.read(at: HookTarget.claude.fileURL(home: home))
+            let (settings, _) = try SettingsFileWriter.read(at: HookTarget.claude.fileURL(folder: folder))
             guard let current = (settings["statusLine"] as? [String: Any])?["command"] as? String,
                   current.contains(path) else { return .missing }
             return current.contains("Bearer \(token)") && current.contains(":\(port)\(path)") ? .installed : .outdated
@@ -97,8 +97,8 @@ public enum StatusLineRelay {
         }
     }
 
-    public static func plan(install: Bool, port: UInt16, token: String, home: String = NSHomeDirectory()) throws -> HookInstallPlan {
-        let url = HookTarget.claude.fileURL(home: home)
+    public static func plan(install: Bool, port: UInt16, token: String, folder: String) throws -> HookInstallPlan {
+        let url = HookTarget.claude.fileURL(folder: folder)
         var (settings, bytes) = try SettingsFileWriter.read(at: url)
         var statusLine = settings["statusLine"] as? [String: Any] ?? [:]
         let previous = (statusLine["command"] as? String).flatMap(previousCommand(in:))

@@ -22,6 +22,7 @@ build_app() {
     mkdir -p "$app/Contents/Resources"
     clang -fobjc-arc -O2 -dynamiclib -framework Foundation Adapters/NowPlayingAdapter.m \
         -o "$app/Contents/Resources/NowPlayingAdapter.dylib"
+    cp LICENSES/coucou-MIT.txt "$app/Contents/Resources/"
     cat > "$app/Contents/Info.plist" <<PLIST
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">

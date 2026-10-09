@@ -7,6 +7,7 @@ import os
 @MainActor
 final class AppCoordinator: NSObject, NSApplicationDelegate {
     static let tokenKey = "hookToken"
+    static let welcomeShownKey = "welcomeShown"
     static let firstUpdateCheckDelay: Duration = .seconds(15)
     static let updateCheckInterval: Duration = .seconds(24 * 60 * 60)
 
@@ -32,6 +33,7 @@ final class AppCoordinator: NSObject, NSApplicationDelegate {
         watchSettingsFolders()
         menuBar = MenuBarController(coordinator: self)
         scheduleUpdateChecks()
+        offerWelcome()
     }
 
     func applicationWillTerminate(_ notification: Notification) {
@@ -47,6 +49,10 @@ final class AppCoordinator: NSObject, NSApplicationDelegate {
         status.openSettingsWindow = { [weak self] in self?.openSettingsWindow() }
         status.checkForUpdates = { [weak self] in self?.checkForUpdates(userInitiated: true) }
         status.installUpdate = { [weak self] in self?.offerAvailableUpdate() }
+        status.configFoldersChanged = { [weak self] in
+            self?.watchSettingsFolders()
+            self?.refreshHookStatus()
+        }
         status.requestAccessibility = {
             let options = ["AXTrustedCheckOptionPrompt": true] as CFDictionary
             _ = AXIsProcessTrustedWithOptions(options)
@@ -69,7 +75,8 @@ final class AppCoordinator: NSObject, NSApplicationDelegate {
         }
     }
 
-    func openSettingsWindow() {
+    func openSettingsWindow(at page: SettingsWindowView.Page? = nil) {
+        if let page { status.settingsPage = page }
         if settingsWindow == nil {
             settingsWindow = SettingsWindowController(preferences: preferences, status: status, store: store, coordinator: self)
         }
@@ -101,19 +108,22 @@ final class AppCoordinator: NSObject, NSApplicationDelegate {
 
     func refreshHookStatus() {
         for target in HookTarget.allCases {
-            let current = HookInstaller.status(for: target, port: port, token: token)
+            let current = HookInstaller.status(for: target, port: port, token: token, folder: preferences.configFolder(for: target))
             if status.hookStatuses[target] != current { status.hookStatuses[target] = current }
         }
-        let relay = StatusLineRelay.status(port: port, token: token)
+        let relay = StatusLineRelay.status(port: port, token: token, folder: preferences.configFolder(for: .claude))
         if status.statusLineStatus != relay { status.statusLineStatus = relay }
         let shellHook = ShellHook.status(port: port, token: token)
         if status.shellHookStatus != shellHook { status.shellHookStatus = shellHook }
         menuBar?.refreshIcon()
     }
 
+    /// Watches each agent's settings folder, so hook health updates when the file changes. Called again when a folder setting changes.
     private func watchSettingsFolders() {
+        folderWatchers.forEach { $0.cancel() }
+        folderWatchers.removeAll()
         for target in HookTarget.allCases {
-            let folder = target.fileURL().deletingLastPathComponent().path
+            let folder = preferences.configFolder(for: target)
             let descriptor = open(folder, O_EVTONLY)
             guard descriptor >= 0 else {
                 logger.info("Not watching \(folder, privacy: .public): it does not exist yet")
@@ -133,20 +143,20 @@ final class AppCoordinator: NSObject, NSApplicationDelegate {
     func installHooks(for target: HookTarget) {
         let note = target == .codex ? "In Codex, run /hooks once and trust the m_notch hook." : nil
         runPlan(title: "\(target.displayName) hooks", note: note) {
-            try HookInstaller.plan(for: target, port: port, token: token)
+            try HookInstaller.plan(for: target, port: port, token: token, folder: preferences.configFolder(for: target))
         }
     }
 
     func uninstallHooks(for target: HookTarget) {
         runPlan(title: "\(target.displayName) hooks removal", note: nil) {
-            try HookInstaller.uninstallPlan(for: target)
+            try HookInstaller.uninstallPlan(for: target, folder: preferences.configFolder(for: target))
         }
     }
 
     func setStatusLineRelay(install: Bool) {
         let note = install ? "Your own status line keeps working: the relay runs it after sending the stats to m_notch." : nil
         runPlan(title: install ? "Status line relay" : "Status line relay removal", note: note) {
-            try StatusLineRelay.plan(install: install, port: port, token: token)
+            try StatusLineRelay.plan(install: install, port: port, token: token, folder: preferences.configFolder(for: .claude))
         }
     }
 
@@ -177,6 +187,32 @@ final class AppCoordinator: NSObject, NSApplicationDelegate {
             logger.error("Could not delete \(ShellHook.scriptURL().path, privacy: .public): \(error.localizedDescription, privacy: .public)")
         }
         refreshHookStatus()
+    }
+
+    /// First launch with Claude not connected yet: one question instead of a hunt for the menu bar item.
+    private func offerWelcome() {
+        guard status.needsHookInstall, !UserDefaults.standard.bool(forKey: Self.welcomeShownKey) else { return }
+        UserDefaults.standard.set(true, forKey: Self.welcomeShownKey)
+        DispatchQueue.main.asyncAfter(deadline: .now() + 1) { [weak self] in
+            MainActor.assumeIsolated {
+                guard let self else { return }
+                NSApp.activate()
+                let settingsFile = HookTarget.claude.fileURL(folder: self.preferences.configFolder(for: .claude)).path
+                let alert = NSAlert()
+                alert.messageText = "Welcome to m_notch"
+                alert.informativeText = "Connect Claude Code so the island can show your sessions and answer their questions. "
+                    + "m_notch adds its hooks to \((settingsFile as NSString).abbreviatingWithTildeInPath). You see the change first, "
+                    + "a backup is made, and your own settings stay.\n\nKeep Claude's settings in another folder? Choose Settings."
+                alert.addButton(withTitle: "Connect Claude Code…")
+                alert.addButton(withTitle: "Settings…")
+                alert.addButton(withTitle: "Later")
+                switch alert.runModal() {
+                case .alertFirstButtonReturn: self.installHooks(for: .claude)
+                case .alertSecondButtonReturn: self.openSettingsWindow(at: .agents)
+                default: break
+                }
+            }
+        }
     }
 
     /// 15 s after launch, then once a day, while "Check for updates" is on.

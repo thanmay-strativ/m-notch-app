@@ -7,10 +7,12 @@ final class SettingsWindowController {
     private let window: NSWindow
 
     init(preferences: Preferences, status: AppStatus, store: SessionStore, coordinator: AppCoordinator) {
-        window = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 840, height: 660),
-                          styleMask: [.titled, .closable, .miniaturizable, .resizable],
+        window = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 820, height: 640),
+                          styleMask: [.titled, .closable, .miniaturizable, .resizable, .fullSizeContentView],
                           backing: .buffered, defer: false)
         window.title = "m_notch Settings"
+        window.titleVisibility = .hidden
+        window.titlebarAppearsTransparent = true
         window.isReleasedWhenClosed = false
         window.contentView = NSHostingView(rootView: SettingsWindowView(
             preferences: preferences, status: status, store: store,

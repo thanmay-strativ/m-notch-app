@@ -184,6 +184,45 @@ struct CharacterPreferenceTests {
         #expect(CharacterDesign.saved("neko") == .neko && CharacterDesign.saved("mochi") == nil)
         #expect(CharacterDesign.momo.hasHeadPart && CharacterDesign.momo.hasSparkleEyes)
     }
+
+    @Test func charactersHaveTheirOwnFaceNotMochis() {
+        let withIris = CharacterDesign.allCases.filter { $0.iris != nil }
+        #expect(withIris == [.pip, .neko, .bun, .boo, .momo])
+        #expect(CharacterDesign.allCases.filter { $0.restingBlush > 0 } == [.bun])
+        #expect(Set(CharacterDesign.allCases.map { "\($0.bodyScale.width)x\($0.bodyScale.height)" }).count >= 5)
+    }
+
+    @MainActor
+    @Test func theOldMochiColorIsNowPearl() {
+        let defaults = UserDefaults(suiteName: "m_notch-pearl-test")!
+        defaults.set("mochi", forKey: "characterColor")
+        #expect(Preferences(defaults: defaults).characterColor == .pearl)
+        #expect(Preferences.CharacterColor.allCases.map(\.title).contains("Pearl"))
+        #expect(!Preferences.CharacterColor.allCases.map(\.title).contains("Mochi"))
+        defaults.removePersistentDomain(forName: "m_notch-pearl-test")
+    }
+}
+
+struct ConfigFolderTests {
+    @Test func defaultsToTheAgentsOwnVariableThenTheHomeFolder() {
+        #expect(HookTarget.claude.defaultFolder(home: "/Users/me", environment: [:]) == "/Users/me/.claude")
+        #expect(HookTarget.codex.defaultFolder(home: "/Users/me", environment: [:]) == "/Users/me/.codex")
+        #expect(HookTarget.claude.defaultFolder(home: "/Users/me", environment: ["CLAUDE_CONFIG_DIR": "/work/claude"]) == "/work/claude")
+        #expect(HookTarget.codex.defaultFolder(home: "/Users/me", environment: ["CODEX_HOME": ""]) == "/Users/me/.codex")
+        #expect(HookTarget.codex.fileURL(folder: "/work/codex").path == "/work/codex/hooks.json")
+    }
+
+    @MainActor
+    @Test func aTypedFolderWinsAndTildeIsExpanded() {
+        let defaults = UserDefaults(suiteName: "m_notch-folder-test")!
+        let preferences = Preferences(defaults: defaults)
+        #expect(preferences.configFolder(for: .claude) == HookTarget.claude.defaultFolder())
+        preferences.claudeFolder = "  ~/work/claude-config "
+        #expect(preferences.configFolder(for: .claude) == NSHomeDirectory() + "/work/claude-config")
+        #expect(preferences.configFolder(for: .codex) == HookTarget.codex.defaultFolder())
+        #expect(Preferences(defaults: defaults).claudeFolder == "  ~/work/claude-config ")
+        defaults.removePersistentDomain(forName: "m_notch-folder-test")
+    }
 }
 
 @MainActor
@@ -249,33 +288,33 @@ struct HookInstallerTests {
 
     @Test func keepsUserSettingsAndHooksAndBacksUp() throws {
         let home = try makeHome(settings: #"{"model":"opus","hooks":{"Stop":[{"hooks":[{"type":"command","command":"say done"}]}]}}"#)
-        #expect(HookInstaller.status(for: .claude, port: 47823, token: "t1", home: home) == .missing)
-        let plan = try HookInstaller.plan(for: .claude, port: 47823, token: "t1", home: home)
+        #expect(HookInstaller.status(for: .claude, port: 47823, token: "t1", folder: home + "/.claude") == .missing)
+        let plan = try HookInstaller.plan(for: .claude, port: 47823, token: "t1", folder: home + "/.claude")
         let backup = try #require(try HookInstaller.apply(plan))
         #expect(FileManager.default.fileExists(atPath: backup.path))
         let stopGroups = try #require(try hooks(home)["Stop"] as? [[String: Any]])
         #expect(stopGroups.count == 2)
         #expect(plan.preview.contains(#""model" : "opus""#))
-        #expect(HookInstaller.status(for: .claude, port: 47823, token: "t1", home: home) == .installed)
+        #expect(HookInstaller.status(for: .claude, port: 47823, token: "t1", folder: home + "/.claude") == .installed)
     }
 
     @Test func reinstallReplacesOurEntriesInsteadOfDuplicating() throws {
         let home = try makeHome(settings: nil)
-        try HookInstaller.apply(try HookInstaller.plan(for: .claude, port: 47823, token: "old", home: home))
-        #expect(HookInstaller.status(for: .claude, port: 47823, token: "new", home: home) == .outdated)
-        try HookInstaller.apply(try HookInstaller.plan(for: .claude, port: 47823, token: "new", home: home))
+        try HookInstaller.apply(try HookInstaller.plan(for: .claude, port: 47823, token: "old", folder: home + "/.claude"))
+        #expect(HookInstaller.status(for: .claude, port: 47823, token: "new", folder: home + "/.claude") == .outdated)
+        try HookInstaller.apply(try HookInstaller.plan(for: .claude, port: 47823, token: "new", folder: home + "/.claude"))
         let preToolUse = try #require(try hooks(home)["PreToolUse"] as? [[String: Any]])
         #expect(preToolUse.count == 2)
-        #expect(HookInstaller.status(for: .claude, port: 47823, token: "new", home: home) == .installed)
+        #expect(HookInstaller.status(for: .claude, port: 47823, token: "new", folder: home + "/.claude") == .installed)
     }
 
     @Test func refusesInvalidJsonAndAFileChangedAfterThePreview() throws {
         let brokenHome = try makeHome(settings: "{ not json")
         #expect(throws: SettingsFileWriter.Failure.self) {
-            try HookInstaller.plan(for: .claude, port: 47823, token: "t", home: brokenHome)
+            try HookInstaller.plan(for: .claude, port: 47823, token: "t", folder: brokenHome + "/.claude")
         }
         let home = try makeHome(settings: "{}")
-        let plan = try HookInstaller.plan(for: .claude, port: 47823, token: "t", home: home)
+        let plan = try HookInstaller.plan(for: .claude, port: 47823, token: "t", folder: home + "/.claude")
         try #"{"edited":true}"#.write(toFile: home + "/.claude/settings.json", atomically: true, encoding: .utf8)
         #expect(throws: SettingsFileWriter.Failure.changed(home + "/.claude/settings.json")) {
             try HookInstaller.apply(plan)

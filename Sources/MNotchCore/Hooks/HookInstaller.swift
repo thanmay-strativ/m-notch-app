@@ -5,11 +5,19 @@ public enum HookTarget: String, CaseIterable, Sendable {
 
     public var displayName: String { self == .claude ? "Claude" : "Codex" }
 
-    public func fileURL(home: String = NSHomeDirectory()) -> URL {
-        switch self {
-        case .claude: return URL(fileURLWithPath: home).appendingPathComponent(".claude/settings.json")
-        case .codex: return URL(fileURLWithPath: home).appendingPathComponent(".codex/hooks.json")
-        }
+    /// The file m_notch merges its hooks into, inside the agent's settings folder.
+    public var fileName: String { self == .claude ? "settings.json" : "hooks.json" }
+
+    /// Where the agent keeps its settings unless another folder is chosen in Settings > Agents: the agent's own
+    /// variable (CLAUDE_CONFIG_DIR, CODEX_HOME) when m_notch was started from a shell that sets it, else ~/.claude or ~/.codex.
+    public func defaultFolder(home: String = NSHomeDirectory(),
+                              environment: [String: String] = ProcessInfo.processInfo.environment) -> String {
+        let variable = environment[self == .claude ? "CLAUDE_CONFIG_DIR" : "CODEX_HOME"] ?? ""
+        return variable.isEmpty ? home + (self == .claude ? "/.claude" : "/.codex") : variable
+    }
+
+    public func fileURL(folder: String) -> URL {
+        URL(fileURLWithPath: folder).appendingPathComponent(fileName)
     }
 }
 
@@ -45,16 +53,16 @@ public enum HookInstaller {
     static let claudeQuickEvents = ["SessionEnd", "UserPromptSubmit", "PreToolUse", "PostToolUse", "Notification", "Stop"]
     static let codexEvents = ["UserPromptSubmit", "PreToolUse", "PostToolUse", "Stop", "PermissionRequest"]
 
-    public static func plan(for target: HookTarget, port: UInt16, token: String, home: String = NSHomeDirectory()) throws -> HookInstallPlan {
-        let url = target.fileURL(home: home)
+    public static func plan(for target: HookTarget, port: UInt16, token: String, folder: String) throws -> HookInstallPlan {
+        let url = target.fileURL(folder: folder)
         let (settings, bytes) = try SettingsFileWriter.read(at: url)
         let merged = try merge(settings: settings, entries: entries(for: target, port: port, token: token), path: url.path)
         let data = try JSONSerialization.data(withJSONObject: merged, options: [.prettyPrinted, .sortedKeys, .withoutEscapingSlashes])
         return HookInstallPlan(url: url, newData: data + Data("\n".utf8), originalBytes: bytes)
     }
 
-    public static func uninstallPlan(for target: HookTarget, home: String = NSHomeDirectory()) throws -> HookInstallPlan {
-        let url = target.fileURL(home: home)
+    public static func uninstallPlan(for target: HookTarget, folder: String) throws -> HookInstallPlan {
+        let url = target.fileURL(folder: folder)
         let (settings, bytes) = try SettingsFileWriter.read(at: url)
         let cleaned = try merge(settings: settings, entries: [:], path: url.path)
         let data = try JSONSerialization.data(withJSONObject: cleaned, options: [.prettyPrinted, .sortedKeys, .withoutEscapingSlashes])
@@ -66,8 +74,8 @@ public enum HookInstaller {
         try SettingsFileWriter.write(plan.newData, to: plan.url, expecting: plan.originalBytes)
     }
 
-    public static func status(for target: HookTarget, port: UInt16, token: String, home: String = NSHomeDirectory()) -> HookStatus {
-        let url = target.fileURL(home: home)
+    public static func status(for target: HookTarget, port: UInt16, token: String, folder: String) -> HookStatus {
+        let url = target.fileURL(folder: folder)
         do {
             let (settings, _) = try SettingsFileWriter.read(at: url)
             let hooks = try SettingsFileWriter.hooks(in: settings, path: url.path)

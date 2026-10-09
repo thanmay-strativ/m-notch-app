@@ -52,26 +52,26 @@ struct StatusLineRelayTests {
 
     @Test func installWrapsTheUsersCommandAndRemoveRestoresItExactly() throws {
         let home = try makeHome(statusLine: "bash ~/.claude/statusline-command.sh")
-        #expect(StatusLineRelay.status(port: 47823, token: "t", home: home) == .missing)
-        try HookInstaller.apply(try StatusLineRelay.plan(install: true, port: 47823, token: "t", home: home))
+        #expect(StatusLineRelay.status(port: 47823, token: "t", folder: home + "/.claude") == .missing)
+        try HookInstaller.apply(try StatusLineRelay.plan(install: true, port: 47823, token: "t", folder: home + "/.claude"))
         let installed = try #require(try statusLine(home)?["command"] as? String)
         #expect(installed.hasSuffix(#"| bash ~/.claude/statusline-command.sh"#))
         #expect(installed.contains("http://127.0.0.1:47823/m_notch/statusline"))
         #expect(try statusLine(home)?["padding"] as? Int == 0)
-        #expect(StatusLineRelay.status(port: 47823, token: "t", home: home) == .installed)
+        #expect(StatusLineRelay.status(port: 47823, token: "t", folder: home + "/.claude") == .installed)
 
-        try HookInstaller.apply(try StatusLineRelay.plan(install: true, port: 47823, token: "t2", home: home))
+        try HookInstaller.apply(try StatusLineRelay.plan(install: true, port: 47823, token: "t2", folder: home + "/.claude"))
         let reinstalled = try #require(try statusLine(home)?["command"] as? String)
         #expect(reinstalled.components(separatedBy: "/m_notch/statusline").count == 2)
 
-        try HookInstaller.apply(try StatusLineRelay.plan(install: false, port: 47823, token: "t2", home: home))
+        try HookInstaller.apply(try StatusLineRelay.plan(install: false, port: 47823, token: "t2", folder: home + "/.claude"))
         #expect(try statusLine(home)?["command"] as? String == "bash ~/.claude/statusline-command.sh")
     }
 
     @Test func removeWithoutAPreviousStatusLineDropsTheKey() throws {
         let home = try makeHome(statusLine: nil)
-        try HookInstaller.apply(try StatusLineRelay.plan(install: true, port: 47823, token: "t", home: home))
-        try HookInstaller.apply(try StatusLineRelay.plan(install: false, port: 47823, token: "t", home: home))
+        try HookInstaller.apply(try StatusLineRelay.plan(install: true, port: 47823, token: "t", folder: home + "/.claude"))
+        try HookInstaller.apply(try StatusLineRelay.plan(install: false, port: 47823, token: "t", folder: home + "/.claude"))
         #expect(try statusLine(home) == nil)
     }
 }

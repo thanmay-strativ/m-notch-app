@@ -6,14 +6,14 @@ import Observation
 @Observable
 final class Preferences {
     enum CharacterColor: String, CaseIterable {
-        case terracotta, mochi, sky, mint, lilac, rose, sunny, graphite
+        case terracotta, pearl, sky, mint, lilac, rose, sunny, graphite
 
         var title: String { rawValue.prefix(1).uppercased() + rawValue.dropFirst() }
 
         var gradientHex: (top: String, bottom: String) {
             switch self {
             case .terracotta: return ("#F0A88C", "#C9653F")
-            case .mochi: return ("#EDEDEF", "#C4C5CA")
+            case .pearl: return ("#EDEDEF", "#C4C5CA")
             case .sky: return ("#9CCBFF", "#3B82F6")
             case .mint: return ("#A7F3D0", "#10B981")
             case .lilac: return ("#D8C7FF", "#8B5CF6")
@@ -21,6 +21,11 @@ final class Preferences {
             case .sunny: return ("#FDE68A", "#F59E0B")
             case .graphite: return ("#9CA3AF", "#4B5563")
             }
+        }
+
+        /// Reads a saved choice. "mochi" was Pearl's old name.
+        static func saved(_ rawValue: String) -> CharacterColor? {
+            rawValue == "mochi" ? .pearl : CharacterColor(rawValue: rawValue)
         }
     }
 
@@ -67,6 +72,9 @@ final class Preferences {
     var showCalendar: Bool { didSet { save(showCalendar, "showCalendar") } }
     var showNowPlaying: Bool { didSet { save(showNowPlaying, "showNowPlaying") } }
     var autoCheckUpdates: Bool { didSet { save(autoCheckUpdates, "autoCheckUpdates") } }
+    /// Claude's and Codex's settings folders as typed in Settings > Agents. Empty means the default (`HookTarget.defaultFolder`).
+    var claudeFolder: String { didSet { save(claudeFolder, "claudeFolder") } }
+    var codexFolder: String { didSet { save(codexFolder, "codexFolder") } }
 
     var soundsEnabled: Bool { didSet { save(soundsEnabled, "soundsEnabled") } }
     var needsYouSound: SoundChoice { didSet { save(needsYouSound.rawValue, "needsYouSound") } }
@@ -89,7 +97,7 @@ final class Preferences {
         launchAtLogin = bool("launchAtLogin", false)
         showCharacter = bool("showCharacter", true)
         character = CharacterDesign.saved(string("character")) ?? .pip
-        characterColor = CharacterColor(rawValue: string("characterColor")) ?? .terracotta
+        characterColor = CharacterColor.saved(string("characterColor")) ?? .terracotta
         outfit = Outfit(rawValue: string("outfit")) ?? .auto
         showGlow = bool("showGlow", true)
         showSessionStats = bool("showSessionStats", true)
@@ -106,12 +114,20 @@ final class Preferences {
         showCalendar = bool("showCalendar", false)
         showNowPlaying = bool("showNowPlaying", true)
         autoCheckUpdates = bool("autoCheckUpdates", true)
+        claudeFolder = string("claudeFolder")
+        codexFolder = string("codexFolder")
         soundsEnabled = bool("soundsEnabled", false)
         needsYouSound = SoundChoice(rawValue: string("needsYouSound")) ?? .glass
         finishedSound = SoundChoice(rawValue: string("finishedSound")) ?? .pop
         soundVolume = double("soundVolume", 0.6)
         shortcutsEnabled = bool("shortcutsEnabled", true)
         toggleIslandShortcut = bool("toggleIslandShortcut", true)
+    }
+
+    /// The folder m_notch installs `target`'s hooks into: the one typed in Settings > Agents (with ~ expanded), or the default.
+    func configFolder(for target: HookTarget) -> String {
+        let typed = (target == .claude ? claudeFolder : codexFolder).trimmingCharacters(in: .whitespacesAndNewlines)
+        return typed.isEmpty ? target.defaultFolder() : (typed as NSString).expandingTildeInPath
     }
 
     /// The compact island always stays longer than the close delay, so it never just blinks.

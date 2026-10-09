@@ -897,8 +897,8 @@ final class BotEngine: ObservableObject {
         let W = size.width
         let H = size.height
         let R = W * 0.3
-        let rx = R * 1.14
-        let ry = R * 0.88
+        let rx = R * 1.14 * design.bodyScale.width
+        let ry = R * 0.88 * design.bodyScale.height
 
         let cx = W / 2 + ox * R
         // particleOverhang shifts the bot body down in canvas coords so hearts can fly into
@@ -916,8 +916,8 @@ final class BotEngine: ObservableObject {
         // Body fill
         drawBody(ctx: &ctx, path: bodyPath, R: R, rx: rx, ry: ry)
 
-        // Blush, always shows a floor proportional to tint (prototype behaviour)
-        let blushVal = max(blush, tint * 0.5, design.restingBlush) * (1 - morph)
+        // Blush only in reactions and for designs that rest with it, never just from the state tint
+        let blushVal = max(blush, design.restingBlush) * (1 - morph)
         let faceContext = ctx
         if blushVal > 0.01 {
             drawBlush(ctx: &ctx, path: bodyPath, rx: rx, ry: ry, R: R, blush: blushVal)
@@ -984,8 +984,8 @@ final class BotEngine: ObservableObject {
         let R = W * 0.3
         // Only draw hands when Mochi is large enough to be meaningful (not compact/peek)
         guard R > 14 else { return }
-        let rx = R * 1.14
-        let ry = R * 0.88
+        let rx = R * 1.14 * design.bodyScale.width
+        let ry = R * 0.88 * design.bodyScale.height
         let cx = W / 2 + ox * R
         let cy = H / 2 + particleOverhang / 2 + oy * R + R * 0.06
 
@@ -1078,8 +1078,8 @@ final class BotEngine: ObservableObject {
         let W = size.width
         let H = size.height
         let R = W * 0.3
-        let rx = R * 1.14
-        let ry = R * 0.88
+        let rx = R * 1.14 * design.bodyScale.width
+        let ry = R * 0.88 * design.bodyScale.height
         let cx = W / 2 + ox * R
         let cy = H / 2 + particleOverhang / 2 + oy * R + R * 0.06
 
@@ -1291,7 +1291,7 @@ final class BotEngine: ObservableObject {
             p.addRoundedRect(in: CGRect(x: -w/2, y: -hh/2, width: w, height: hh),
                              cornerSize: CGSize(width: min(w/2, hh/2), height: min(w/2, hh/2)))
             ctx.fill(p, with: .color(ink))
-            drawEyeSparkle(&ctx, width: w, height: hh, radius: R)
+            drawDesignEye(&ctx, width: w, height: hh, ink: ink, radius: R)
 
         case .dot:
             var p = Path()

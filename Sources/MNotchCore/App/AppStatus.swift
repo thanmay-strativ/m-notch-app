@@ -13,6 +13,7 @@ final class AppStatus {
     var calendarAccess: CalendarAccess = .notAsked
     var launchAtLoginError: String?
     var updateState: UpdateState = .idle
+    var settingsPage: SettingsWindowView.Page = .general
 
     @ObservationIgnored var installHooks: (HookTarget) -> Void = { _ in }
     @ObservationIgnored var uninstallHooks: (HookTarget) -> Void = { _ in }
@@ -22,6 +23,7 @@ final class AppStatus {
     @ObservationIgnored var requestAccessibility: () -> Void = {}
     @ObservationIgnored var checkForUpdates: () -> Void = {}
     @ObservationIgnored var installUpdate: () -> Void = {}
+    @ObservationIgnored var configFoldersChanged: () -> Void = {}
 
     var needsHookInstall: Bool { hookStatuses[.claude].map { $0 != .installed } ?? false }
 

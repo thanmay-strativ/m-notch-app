@@ -5,8 +5,9 @@ import AppKit
 import ApplicationServices
 import SwiftUI
 
+/// The settings window: a sidebar of pages, each one a grouped form like System Settings.
 struct SettingsWindowView: View {
-    enum Section: String, CaseIterable, Identifiable {
+    enum Page: String, CaseIterable, Identifiable {
         case general = "General", appearance = "Appearance", agents = "Agents", extras = "Extras"
         case sounds = "Sounds", shortcuts = "Shortcuts", about = "About"
 
@@ -23,379 +24,562 @@ struct SettingsWindowView: View {
             case .about: return ("info.circle.fill", "#A78BFA")
             }
         }
+
+        var subtitle: String {
+            switch self {
+            case .general: return "How the island opens, closes and peeks"
+            case .appearance: return "Your character, its color and outfit"
+            case .agents: return "Connect Claude Code and Codex"
+            case .extras: return "Calendar, music and terminal commands"
+            case .sounds: return "Sounds for requests and finished sessions"
+            case .shortcuts: return "Answer from the keyboard"
+            case .about: return "Version, updates and credits"
+            }
+        }
     }
 
     let preferences: Preferences
     let status: AppStatus
     let store: SessionStore
     let setLaunchAtLogin: (Bool) -> Void
-    @State var selection: Section = .general
+    @State private var isAccessibilityAllowed = AXIsProcessTrusted()
 
     var body: some View {
         HStack(spacing: 0) {
-            List(Section.allCases, selection: $selection) { section in
-                Label {
-                    Text(verbatim: section.rawValue)
-                } icon: {
-                    Image(systemName: section.icon.name)
-                        .foregroundColor(.white)
-                        .font(.system(size: 11))
-                        .frame(width: 20, height: 20)
-                        .background(RoundedRectangle(cornerRadius: 5).fill(Color(hex: section.icon.color)))
-                }
-                .tag(section)
-            }
-            .listStyle(.sidebar)
-            .frame(width: 190)
+            sidebar
             Divider()
-            ScrollView {
-                VStack(alignment: .leading, spacing: 16) {
-                    Text(verbatim: selection.rawValue).font(.title2).fontWeight(.semibold)
-                    page
-                }
-                .padding(20)
-                .frame(maxWidth: .infinity, alignment: .leading)
+            VStack(alignment: .leading, spacing: 0) {
+                pageHeader
+                page.id(status.settingsPage).transition(.opacity)
+            }
+            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+            .background(Color(nsColor: .windowBackgroundColor))
+            .animation(.easeInOut(duration: 0.18), value: status.settingsPage)
+        }
+        .ignoresSafeArea(.container, edges: .top)
+        .frame(minWidth: 760, minHeight: 540)
+        .onReceive(NotificationCenter.default.publisher(for: NSApplication.didBecomeActiveNotification)) { _ in
+            isAccessibilityAllowed = AXIsProcessTrusted()
+            status.configFoldersChanged()
+        }
+    }
+
+    /// Solid sidebar, drawn by hand so it looks the same in screenshots as on screen. Leaves room for the window buttons.
+    private var sidebar: some View {
+        VStack(alignment: .leading, spacing: 2) {
+            ForEach(Page.allCases) { page in
+                SidebarRow(page: page, isSelected: status.settingsPage == page) { status.settingsPage = page }
+            }
+            Spacer()
+            Text(verbatim: "m_notch \(Updater.currentVersion)")
+                .font(.caption)
+                .foregroundStyle(.tertiary)
+                .padding(.leading, 12)
+        }
+        .padding(.horizontal, 10)
+        .padding(.top, 52)
+        .padding(.bottom, 14)
+        .frame(width: 210)
+        .frame(maxHeight: .infinity)
+        .background(ZStack {
+            Color(nsColor: .windowBackgroundColor)
+            Color.primary.opacity(0.04)
+        })
+    }
+
+    private var pageHeader: some View {
+        HStack(spacing: 12) {
+            PageIcon(page: status.settingsPage, size: 32)
+            VStack(alignment: .leading, spacing: 1) {
+                Text(verbatim: status.settingsPage.rawValue).font(.system(size: 20, weight: .bold))
+                Text(verbatim: status.settingsPage.subtitle).font(.callout).foregroundStyle(.secondary)
             }
         }
-        .frame(minWidth: 820, minHeight: 520)
+        .padding(.horizontal, 28)
+        .padding(.top, 34)
+        .padding(.bottom, 2)
     }
 
     @ViewBuilder private var page: some View {
         @Bindable var preferences = preferences
-        switch selection {
-        case .general: generalPage(preferences: $preferences)
-        case .appearance: appearancePage(preferences: $preferences)
-        case .agents: agentsPage(preferences: $preferences)
-        case .extras: extrasPage(preferences: $preferences)
-        case .sounds: soundsPage(preferences: $preferences)
-        case .shortcuts: shortcutsPage(preferences: $preferences)
-        case .about: aboutPage(preferences: $preferences)
+        Group {
+            switch status.settingsPage {
+            case .general: generalPage(preferences: $preferences)
+            case .appearance: appearancePage(preferences: $preferences)
+            case .agents: agentsPage(preferences: $preferences)
+            case .extras: extrasPage(preferences: $preferences)
+            case .sounds: soundsPage(preferences: $preferences)
+            case .shortcuts: shortcutsPage(preferences: $preferences)
+            case .about: aboutPage(preferences: $preferences)
+            }
         }
+        .formStyle(.grouped)
+        .scrollContentBackground(.hidden)
+        .toggleStyle(.switch)
     }
 
+    // MARK: - Pages
+
     private func generalPage(preferences: Bindable<Preferences>) -> some View {
-        Group {
-            GroupBox("Behavior") {
-                VStack(alignment: .leading, spacing: 10) {
-                    Toggle("Open the island on hover (not just peek)", isOn: preferences.openOnHover)
-                    Picker("Go back to the previous size after the mouse leaves", selection: preferences.closeDelay) {
-                        ForEach(Preferences.closeDelayChoices, id: \.self) { delay in
-                            Text(verbatim: delay < 1 ? "0.5 seconds" : "\(Int(delay)) seconds").tag(delay)
-                        }
+        Form {
+            Section("Island") {
+                toggle("Open on hover", "Hovering the notch opens the island fully, not just a peek", isOn: preferences.openOnHover)
+                Picker("Shrink after the pointer leaves", selection: preferences.closeDelay) {
+                    ForEach(Preferences.closeDelayChoices, id: \.self) { delay in
+                        Text(verbatim: delay < 1 ? "0.5 seconds" : "\(Int(delay)) seconds").tag(delay)
                     }
-                    Picker("Then keep the compact island for", selection: preferences.compactHold) {
-                        ForEach(preferences.wrappedValue.compactHoldOptions, id: \.self) { seconds in
-                            Text(verbatim: "\(Int(seconds)) seconds").tag(seconds)
-                        }
-                    }
-                    Picker("Keep the compact island visible after activity", selection: preferences.activityHold) {
-                        ForEach([15.0, 30, 60, 120, 300], id: \.self) { seconds in
-                            Text(verbatim: seconds < 60 ? "\(Int(seconds)) seconds" : "\(Int(seconds / 60)) min").tag(seconds)
-                        }
-                    }
-                    Toggle("Peek when a session starts working", isOn: preferences.revealOnActivity)
-                    Toggle("Peek when a session finishes", isOn: preferences.revealOnFinish)
-                    Toggle("Stay quiet when the session's IDE is already in front", isOn: preferences.quietWhenLooking)
-                    Toggle("Nudge once when something waits for 2 minutes", isOn: preferences.nudgeEnabled)
                 }
-                .padding(6)
+                Picker("Then stay small for", selection: preferences.compactHold) {
+                    ForEach(preferences.wrappedValue.compactHoldOptions, id: \.self) { seconds in
+                        Text(verbatim: "\(Int(seconds)) seconds").tag(seconds)
+                    }
+                }
+                Picker("Stay visible after activity", selection: preferences.activityHold) {
+                    ForEach([15.0, 30, 60, 120, 300], id: \.self) { seconds in
+                        Text(verbatim: seconds < 60 ? "\(Int(seconds)) seconds" : "\(Int(seconds / 60)) min").tag(seconds)
+                    }
+                }
             }
-            GroupBox("Display") {
-                VStack(alignment: .leading, spacing: 8) {
-                    Picker("Show the island on", selection: preferences.displayChoice) {
-                        ForEach(IslandDisplayChoice.allCases, id: \.self) { Text(verbatim: $0.title).tag($0) }
-                    }
-                    .frame(maxWidth: 380)
-                    hint("On a screen without a notch the island sits in a small bar at the top. Follow mouse moves it to your cursor's screen while it is closed.")
-                }
-                .padding(6)
+            Section("Peek out") {
+                toggle("When a session starts working", isOn: preferences.revealOnActivity)
+                toggle("When a session finishes", isOn: preferences.revealOnFinish)
+                toggle("Stay quiet when its IDE is in front", "No peeking while you are already looking at that window", isOn: preferences.quietWhenLooking)
+                toggle("Nudge once after 2 minutes of waiting", isOn: preferences.nudgeEnabled)
             }
-            GroupBox("System") {
-                VStack(alignment: .leading, spacing: 8) {
-                    Toggle("Keep the Mac awake while an agent works", isOn: preferences.keepAwake)
-                    Toggle("Launch at login", isOn: Binding(get: { self.preferences.launchAtLogin }, set: { setLaunchAtLogin($0) }))
-                    if let error = status.launchAtLoginError { hint("Launch at login failed: \(error)") }
+            Section {
+                Picker("Show the island on", selection: preferences.displayChoice) {
+                    ForEach(IslandDisplayChoice.allCases, id: \.self) { Text(verbatim: $0.title).tag($0) }
                 }
-                .padding(6)
+            } header: {
+                Text("Screen")
+            } footer: {
+                footnote("On a screen without a notch the island sits in a small bar at the top. Follow mouse moves it to your pointer's screen while it is closed.")
+            }
+            Section("System") {
+                toggle("Keep the Mac awake while an agent works", isOn: preferences.keepAwake)
+                toggle("Launch at login", status.launchAtLoginError.map { "Failed: \($0)" },
+                       isOn: Binding(get: { self.preferences.launchAtLogin }, set: { setLaunchAtLogin($0) }))
             }
         }
     }
 
     private func appearancePage(preferences: Bindable<Preferences>) -> some View {
-        Group {
-            GroupBox {
-                VStack(alignment: .leading, spacing: 18) {
-                    CharacterHero(design: self.preferences.character, color: self.preferences.characterColor,
-                                  outfit: self.preferences.outfit)
-                    PreviewGrid {
-                        ForEach(CharacterDesign.allCases, id: \.self) { design in
-                            PreviewCard(title: design.title, help: design.tagline, design: design,
-                                        color: self.preferences.characterColor, outfit: self.preferences.outfit,
-                                        isOn: self.preferences.character == design) {
-                                self.preferences.character = design
-                            }
+        Form {
+            Section {
+                CharacterHero(design: self.preferences.character, color: self.preferences.characterColor, outfit: self.preferences.outfit)
+            }
+            Section("Character") {
+                ChoiceGrid {
+                    ForEach(CharacterDesign.allCases, id: \.self) { design in
+                        ChoiceTile(title: design.title, help: design.tagline, design: design,
+                                   color: self.preferences.characterColor, outfit: self.preferences.outfit,
+                                   isOn: self.preferences.character == design) {
+                            self.preferences.character = design
                         }
                     }
-                    HStack(alignment: .top, spacing: 4) {
+                }
+                LabeledContent {
+                    HStack(spacing: 4) {
                         ForEach(Preferences.CharacterColor.allCases, id: \.self) { color in
-                            VStack(spacing: 5) {
-                                ColorSwatch(color: color, isOn: self.preferences.characterColor == color, size: 22) {
-                                    self.preferences.characterColor = color
-                                }
-                                Text(verbatim: color.title).font(.system(size: 10))
-                                    .foregroundColor(self.preferences.characterColor == color ? .primary : .secondary)
-                            }
-                            .frame(width: 60)
-                        }
-                    }
-                }
-                .padding(10)
-            } label: {
-                Label("Character", systemImage: "face.smiling")
-            }
-            GroupBox {
-                VStack(alignment: .leading, spacing: 12) {
-                    PreviewGrid {
-                        ForEach(Outfit.allCases, id: \.self) { outfit in
-                            PreviewCard(title: outfit == .auto ? "Auto" : outfit.displayName, help: outfit.displayName,
-                                        design: self.preferences.character, color: self.preferences.characterColor,
-                                        outfit: outfit, isOn: self.preferences.outfit == outfit) {
-                                self.preferences.outfit = outfit
+                            SettingsSwatch(color: color, isOn: self.preferences.characterColor == color) {
+                                self.preferences.characterColor = color
                             }
                         }
                     }
-                    hint("Auto changes with the season: devil horns in October, antlers in December, a propeller cap at New Year, a flower crown at Easter, heart glasses in summer.")
+                } label: {
+                    Text("Color")
+                    Text(verbatim: self.preferences.characterColor.title)
                 }
-                .padding(10)
-            } label: {
-                Label("Outfit", systemImage: "tshirt")
             }
-            GroupBox {
-                VStack(alignment: .leading, spacing: 10) {
-                    Toggle("Show the character in the island", isOn: preferences.showCharacter)
-                    Toggle("Glow behind the character", isOn: preferences.showGlow)
+            Section {
+                ChoiceGrid {
+                    ForEach(Outfit.allCases, id: \.self) { outfit in
+                        ChoiceTile(title: outfit == .auto ? "Auto" : outfit.displayName, help: outfit.displayName,
+                                   design: self.preferences.character, color: self.preferences.characterColor,
+                                   outfit: outfit, isOn: self.preferences.outfit == outfit) {
+                            self.preferences.outfit = outfit
+                        }
+                    }
                 }
-                .padding(6)
-                .frame(maxWidth: .infinity, alignment: .leading)
-            } label: {
-                Label("Display", systemImage: "sparkles")
+            } header: {
+                Text("Outfit")
+            } footer: {
+                footnote("Auto follows the season: devil horns in October, antlers in December, a propeller cap at New Year, a flower crown at Easter, heart glasses in summer.")
             }
-            GroupBox("Island content") {
-                VStack(alignment: .leading, spacing: 10) {
-                    Toggle("Session stats (model, context, tools, uptime)", isOn: preferences.showSessionStats)
-                    Toggle("Plan usage in the header (5-hour and 7-day)", isOn: preferences.showPlanUsage)
-                    Toggle("Diff chips (views.py +12 -3)", isOn: preferences.showDiffChips)
-                    hint("Model, context and plan usage come from the status line relay (Agents page). Without it, context is estimated from the transcript and plan usage is hidden.")
-                }
-                .padding(6)
-                .frame(maxWidth: .infinity, alignment: .leading)
+            Section {
+                toggle("Show the character", isOn: preferences.showCharacter)
+                toggle("Glow behind it", isOn: preferences.showGlow)
+                toggle("Session stats", "Model, context, tool calls and uptime under each session", isOn: preferences.showSessionStats)
+                toggle("Plan usage", "Your 5-hour and 7-day usage in the header", isOn: preferences.showPlanUsage)
+                toggle("Diff chips", "Changed files like views.py +12 -3", isOn: preferences.showDiffChips)
+            } header: {
+                Text("In the island")
+            } footer: {
+                footnote("Model, context and plan usage come from the status line relay (Agents). Without it, context is estimated and plan usage is hidden.")
             }
         }
     }
 
     private func agentsPage(preferences: Bindable<Preferences>) -> some View {
-        Group {
-            GroupBox("Claude Code") {
-                VStack(alignment: .leading, spacing: 10) {
-                    integrationRow(title: "Hooks", detail: "sessions, approvals, questions",
-                                   hookStatus: status.hookStatuses[.claude] ?? .missing,
-                                   install: { status.installHooks(.claude) }, remove: { status.uninstallHooks(.claude) })
-                    integrationRow(title: "Status line relay", detail: "model, context, 5h and 7d plan usage",
-                                   hookStatus: status.statusLineStatus,
-                                   install: { status.setStatusLineRelay(true) }, remove: { status.setStatusLineRelay(false) })
-                    hint("The relay sends Claude's status line data to m_notch, then runs your own status line command, so your terminal looks the same.")
-                }
-                .padding(6)
+        Form {
+            Section {
+                folderRow(for: .claude, text: preferences.claudeFolder)
+                integrationRow(title: "Hooks", detail: "Sessions, approvals and questions",
+                               hookStatus: status.hookStatuses[.claude] ?? .missing,
+                               install: { status.installHooks(.claude) }, remove: { status.uninstallHooks(.claude) })
+                integrationRow(title: "Status line relay", detail: "Model, context and plan usage",
+                               hookStatus: status.statusLineStatus,
+                               install: { status.setStatusLineRelay(true) }, remove: { status.setStatusLineRelay(false) })
+            } header: {
+                Text("Claude Code")
+            } footer: {
+                footnote("Most people keep ~/.claude. If you start Claude with CLAUDE_CONFIG_DIR, put that folder here. The relay runs your own status line after sending the stats, so your terminal looks the same.")
             }
-            GroupBox("Codex") {
-                VStack(alignment: .leading, spacing: 8) {
-                    integrationRow(title: "Hooks", detail: "sessions and approvals",
-                                   hookStatus: status.hookStatuses[.codex] ?? .missing,
-                                   install: { status.installHooks(.codex) }, remove: { status.uninstallHooks(.codex) })
-                    hint("After installing, run /hooks once in Codex and trust the m_notch hook.")
-                }
-                .padding(6)
+            Section {
+                folderRow(for: .codex, text: preferences.codexFolder)
+                integrationRow(title: "Hooks", detail: "Sessions and approvals",
+                               hookStatus: status.hookStatuses[.codex] ?? .missing,
+                               install: { status.installHooks(.codex) }, remove: { status.uninstallHooks(.codex) })
+            } header: {
+                Text("Codex")
+            } footer: {
+                footnote("Most people keep ~/.codex, or CODEX_HOME if set. After installing, run /hooks once in Codex and trust the m_notch hook.")
             }
-            GroupBox("Approvals") {
-                VStack(alignment: .leading, spacing: 10) {
-                    Toggle("Answer permissions and questions in the notch", isOn: preferences.answerInNotch)
-                    Toggle("Ask for Touch ID before allowing risky commands", isOn: preferences.touchIdForRisky)
-                    hint("Off: requests go straight to the terminal prompt. Risky means rm -rf, sudo, git push --force, DROP TABLE, writes to .env or outside the project, and similar.")
-                }
-                .padding(6)
+            Section {
+                toggle("Answer in the notch", "Permissions, questions and plans show as cards", isOn: preferences.answerInNotch)
+                toggle("Touch ID for risky commands", "rm -rf, sudo, git push --force, DROP TABLE, writes to .env or outside the project",
+                       isOn: preferences.touchIdForRisky)
+            } header: {
+                Text("Approvals")
+            } footer: {
+                footnote("Off: requests go straight to the terminal prompt.")
             }
-            GroupBox("Jump to window") {
-                VStack(alignment: .leading, spacing: 10) {
-                    Toggle("Raise the exact project window, not just the app", isOn: preferences.raiseExactWindow)
-                    HStack {
-                        Text(verbatim: AXIsProcessTrusted() ? "Accessibility: allowed" : "Accessibility: not allowed")
-                            .foregroundColor(.secondary)
-                        if !AXIsProcessTrusted() { Button("Allow…") { status.requestAccessibility() } }
+            Section {
+                toggle("Raise the exact project window", "Not just the app, when it has several windows open", isOn: preferences.raiseExactWindow)
+                LabeledContent {
+                    HStack(spacing: 8) {
+                        StatusPill(text: isAccessibilityAllowed ? "Allowed" : "Not allowed", tone: isAccessibilityAllowed ? .good : .warning)
+                        if !isAccessibilityAllowed { Button("Allow…") { status.requestAccessibility() } }
                     }
-                    hint("Needs the Accessibility permission. A locally built app gets a new signature on every rebuild, so macOS may ask again after an update.")
+                } label: {
+                    Text("Accessibility")
+                    Text("Needed to find a window by its title")
                 }
-                .padding(6)
+            } header: {
+                Text("Jump to window")
+            } footer: {
+                footnote("macOS may ask again after an update, because the app has no paid Apple signature.")
             }
-            GroupBox("Server") {
-                Text(verbatim: status.serverLine).foregroundColor(.secondary).padding(6)
+            Section("Server") {
+                LabeledContent("Hook server") { StatusPill(text: status.serverLine, tone: serverTone) }
             }
         }
     }
 
     private func extrasPage(preferences: Bindable<Preferences>) -> some View {
-        Group {
-            GroupBox("Calendar") {
-                VStack(alignment: .leading, spacing: 10) {
-                    Toggle("Show your calendar in the island", isOn: preferences.showCalendar)
-                    HStack {
-                        Text(verbatim: status.calendarAccess.label).foregroundColor(.secondary)
+        Form {
+            Section {
+                toggle("Show your calendar", "A calendar tab next to the house, with Join buttons for video calls", isOn: preferences.showCalendar)
+                LabeledContent {
+                    HStack(spacing: 8) {
+                        StatusPill(text: calendarAccessText, tone: calendarAccessTone)
                         if status.calendarAccess == .denied {
                             Button("Open System Settings…") {
                                 NSWorkspace.shared.open(URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_Calendars")!)
                             }
                         }
                     }
-                    hint("Adds a calendar tab next to the house in the island: a week strip, then the day's events with a now line and a Join button for Zoom, Google Meet, Teams and Webex links. A meeting that starts within the hour also shows above your sessions. It reads the calendars of the macOS Calendar app, so add your Google or Outlook account there. A locally built app gets a new signature on every rebuild, so macOS may ask again after an update.")
+                } label: {
+                    Text("Calendars")
                 }
-                .padding(6)
-                .frame(maxWidth: .infinity, alignment: .leading)
+            } header: {
+                Text("Calendar")
+            } footer: {
+                footnote("Reads the calendars of the macOS Calendar app, so add your Google or Outlook account there. A meeting that starts within the hour also shows above your sessions.")
             }
-            GroupBox("Now playing") {
-                VStack(alignment: .leading, spacing: 10) {
-                    Toggle("Show what's playing in the island", isOn: preferences.showNowPlaying)
-                    hint("Music, Spotify, YouTube and other sites in your browser, podcasts: whatever shows in Control Center's Now Playing. A music tab appears next to the house with the artwork, progress and play, pause, next and previous, and the track shows above your sessions. macOS only shares this with Apple's own programs, so m_notch reads it through the system's /usr/bin/perl with a small helper built into the app. Nothing leaves your Mac.")
-                }
-                .padding(6)
-                .frame(maxWidth: .infinity, alignment: .leading)
+            Section {
+                toggle("Show what's playing", "Music, Spotify, YouTube in your browser, podcasts", isOn: preferences.showNowPlaying)
+            } header: {
+                Text("Now playing")
+            } footer: {
+                footnote("A music tab with the artwork, a progress bar you can drag, and play controls. macOS only shares this with Apple's own programs, so m_notch reads it through /usr/bin/perl with a small helper built into the app. Nothing leaves your Mac.")
             }
-            GroupBox("Terminal commands") {
-                VStack(alignment: .leading, spacing: 10) {
-                    integrationRow(title: "zsh hook", detail: "commands that run 30 seconds or more",
-                                   hookStatus: status.shellHookStatus,
-                                   install: { status.setShellHook(true) }, remove: { status.setShellHook(false) })
-                    hint("When a long command ends (tests, builds, installs), the island shows it passed or failed and how long it took. It adds one line to ~/.zshrc that loads a small script m_notch keeps in Application Support, so the token stays out of your dotfiles. Editors, ssh, REPLs and commands you stop with Ctrl-C are skipped.")
-                }
-                .padding(6)
+            Section {
+                integrationRow(title: "zsh hook", detail: "Commands that run 30 seconds or more",
+                               hookStatus: status.shellHookStatus,
+                               install: { status.setShellHook(true) }, remove: { status.setShellHook(false) })
+            } header: {
+                Text("Terminal commands")
+            } footer: {
+                footnote("When a long command ends (tests, builds, installs), the island shows if it passed and how long it took. It adds one line to ~/.zshrc. Editors, ssh, REPLs and Ctrl-C are skipped.")
             }
         }
     }
 
     private func soundsPage(preferences: Bindable<Preferences>) -> some View {
-        GroupBox("Sounds") {
-            VStack(alignment: .leading, spacing: 10) {
-                Toggle("Play sounds", isOn: preferences.soundsEnabled)
-                HStack {
-                    Text(verbatim: "Volume")
+        Form {
+            Section {
+                toggle("Play sounds", isOn: preferences.soundsEnabled)
+                LabeledContent("Volume") {
                     Slider(value: preferences.soundVolume, in: 0...1).frame(width: 200)
                 }
                 .disabled(!self.preferences.soundsEnabled)
                 soundPicker("When something needs you", selection: preferences.needsYouSound)
                 soundPicker("When a session finishes", selection: preferences.finishedSound)
-                hint("macOS system sounds. coucou's own sounds are not licensed for reuse.")
+            } footer: {
+                footnote("macOS system sounds. Press ▶ to hear one.")
             }
-            .padding(6)
         }
     }
 
     private func shortcutsPage(preferences: Bindable<Preferences>) -> some View {
-        Group {
-            GroupBox("While a request waits") {
-                VStack(alignment: .leading, spacing: 8) {
-                    Toggle("Enable approval shortcuts", isOn: preferences.shortcutsEnabled)
-                    shortcutLine("⌥⌘Y", "Allow, or Approve plan")
-                    shortcutLine("⌥⌘N", "Deny, or Keep planning")
-                    shortcutLine("⌥⌘A", "Always allow")
-                    shortcutLine("⌥⌘1 to ⌥⌘4", "Pick a question option")
-                }
-                .padding(6)
+        Form {
+            Section {
+                toggle("Approval shortcuts", "Only active while a request waits, so they never clash with your IDE", isOn: preferences.shortcutsEnabled)
+                shortcutLine("⌥⌘Y", "Allow, or Approve plan")
+                shortcutLine("⌥⌘N", "Deny, or Keep planning")
+                shortcutLine("⌥⌘A", "Always allow")
+                shortcutLine("⌥⌘1 to ⌥⌘4", "Pick a question option")
+            } header: {
+                Text("While a request waits")
             }
-            GroupBox("Any time") {
-                VStack(alignment: .leading, spacing: 8) {
-                    Toggle("⌥⌘M opens or closes the island", isOn: preferences.toggleIslandShortcut)
-                }
-                .padding(6)
+            Section("Any time") {
+                toggle("⌥⌘M opens or closes the island", isOn: preferences.toggleIslandShortcut)
             }
         }
     }
 
     private func aboutPage(preferences: Bindable<Preferences>) -> some View {
-        Group {
-            GroupBox {
-                VStack(alignment: .leading, spacing: 8) {
-                    Text(verbatim: "m_notch \(Updater.currentVersion)").font(.headline)
-                    Text(verbatim: "A notch island for Claude Code and Codex sessions in PyCharm and VS Code.")
-                    Text(verbatim: "\(store.sessions.count) live session(s). Last hook event: \(store.lastEventAt.map { RelativeAge.text(since: $0) } ?? "none").")
-                        .foregroundColor(.secondary)
+        Form {
+            Section {
+                HStack(spacing: 14) {
+                    CharacterPreview(design: self.preferences.character, color: self.preferences.characterColor,
+                                     outfit: self.preferences.outfit, width: 40, headroom: 0.4, interactive: true)
+                        .frame(width: 60, height: 60)
+                        .background(CharacterTileBackground(glow: Color(hex: self.preferences.characterColor.gradientHex.top), cornerRadius: 14))
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text(verbatim: "m_notch").font(.system(size: 17, weight: .semibold, design: .rounded))
+                        Text(verbatim: "Version \(Updater.currentVersion)").foregroundStyle(.secondary)
+                        Text(verbatim: "A notch island for Claude Code and Codex in PyCharm and VS Code.")
+                            .font(.caption).foregroundStyle(.tertiary)
+                    }
+                    Spacer()
+                    Link("GitHub", destination: URL(string: "https://github.com/\(Updater.repository)")!)
                 }
-                .padding(6)
-                .frame(maxWidth: .infinity, alignment: .leading)
+                LabeledContent("Live sessions", value: "\(store.sessions.count)")
+                LabeledContent("Last hook event", value: store.lastEventAt.map { RelativeAge.text(since: $0) == "now" ? "just now" : RelativeAge.text(since: $0) + " ago" } ?? "none yet")
             }
-            GroupBox("Updates") {
-                VStack(alignment: .leading, spacing: 10) {
-                    Toggle("Check for updates once a day", isOn: preferences.autoCheckUpdates)
-                    HStack {
-                        Text(verbatim: status.updateState.label).foregroundColor(.secondary)
-                        Spacer()
+            Section {
+                toggle("Check for updates once a day", isOn: preferences.autoCheckUpdates)
+                LabeledContent {
+                    HStack(spacing: 8) {
                         if case .available = status.updateState {
-                            Button("Install…") { status.installUpdate() }
+                            Button("Install…") { status.installUpdate() }.buttonStyle(.borderedProminent)
                         }
                         Button("Check Now") { status.checkForUpdates() }
                             .disabled(status.updateState == .checking || status.updateState == .installing)
                     }
-                    hint("Updates come from the releases of github.com/\(Updater.repository). m_notch checks the download's SHA-256, replaces itself and opens again. The app has no paid Apple signature, so macOS may ask for Accessibility and Calendars again after an update.")
+                } label: {
+                    Text("Status")
+                    Text(verbatim: status.updateState.label)
                 }
-                .padding(6)
-                .frame(maxWidth: .infinity, alignment: .leading)
+            } header: {
+                Text("Updates")
+            } footer: {
+                footnote("New versions come from the GitHub releases. m_notch checks the download's SHA-256, replaces itself and opens again.")
             }
-            GroupBox("Credits") {
-                hint("The island, its animations and the character engine are ported from coucou by Louis Raillé (MIT License, see LICENSES/coucou-MIT.txt). Now playing reads macOS through /usr/bin/perl, a technique from mediaremote-adapter by ungive. The music and calendar tabs are inspired by boring.notch. The six characters are m_notch's own designs.")
-                    .padding(6)
-                    .frame(maxWidth: .infinity, alignment: .leading)
+            Section {
+                creditRow("coucou", "The island, its animations and the character engine (MIT License)", url: "https://github.com/Louis-CFM/coucou")
+                creditRow("mediaremote-adapter", "The idea of reading Now Playing through /usr/bin/perl", url: "https://github.com/ungive/mediaremote-adapter")
+                creditRow("boring.notch", "Inspiration for music and a calendar in the notch", url: "https://github.com/TheBoredTeam/boring.notch")
+            } header: {
+                Text("Thanks to")
+            } footer: {
+                footnote("coucou's code is used under the MIT License (LICENSES/coucou-MIT.txt, also inside the app). The six characters are m_notch's own designs.")
             }
         }
+    }
+
+    // MARK: - Rows
+
+    /// A switch with a title and an optional second line, like System Settings.
+    private func toggle(_ title: String, _ detail: String? = nil, isOn: Binding<Bool>) -> some View {
+        Toggle(isOn: isOn) {
+            Text(verbatim: title)
+            if let detail { Text(verbatim: detail) }
+        }
+    }
+
+    /// Where the agent's settings live. Empty uses the default, shown as the placeholder.
+    private func folderRow(for target: HookTarget, text: Binding<String>) -> some View {
+        let folder = preferences.configFolder(for: target)
+        var isFolder: ObjCBool = false
+        let exists = FileManager.default.fileExists(atPath: folder, isDirectory: &isFolder) && isFolder.boolValue
+        return LabeledContent {
+            HStack(spacing: 6) {
+                TextField("", text: text, prompt: Text(verbatim: Self.tilde(target.defaultFolder())))
+                    .textFieldStyle(.roundedBorder)
+                    .multilineTextAlignment(.leading)
+                    .frame(width: 230)
+                    .onChange(of: text.wrappedValue) { status.configFoldersChanged() }
+                Button { chooseFolder(for: target, text: text) } label: { Image(systemName: "folder") }
+                    .help("Choose the folder")
+                if !text.wrappedValue.isEmpty {
+                    Button { text.wrappedValue = "" } label: { Image(systemName: "arrow.uturn.backward") }
+                        .help("Use the default, \(Self.tilde(target.defaultFolder()))")
+                }
+            }
+        } label: {
+            Text("Settings folder")
+            Text(verbatim: exists ? "Uses \(Self.tilde(target.fileURL(folder: folder).path))" : "No folder at \(Self.tilde(folder)) yet")
+                .foregroundStyle(exists ? Color.secondary : Palette.needsYou)
+        }
+    }
+
+    private func chooseFolder(for target: HookTarget, text: Binding<String>) {
+        let panel = NSOpenPanel()
+        panel.canChooseDirectories = true
+        panel.canChooseFiles = false
+        panel.showsHiddenFiles = true
+        panel.directoryURL = URL(fileURLWithPath: preferences.configFolder(for: target))
+        panel.prompt = "Use This Folder"
+        panel.message = "Choose the folder that holds \(target.displayName)'s \(target.fileName)"
+        guard panel.runModal() == .OK, let url = panel.url else { return }
+        text.wrappedValue = Self.tilde(url.path)
     }
 
     private func integrationRow(title: String, detail: String, hookStatus: HookStatus,
                                 install: @escaping () -> Void, remove: @escaping () -> Void) -> some View {
-        HStack(spacing: 8) {
-            Circle().fill(hookStatus == .installed ? Palette.done : Palette.needsYou).frame(width: 8, height: 8)
-            VStack(alignment: .leading, spacing: 1) {
-                Text(verbatim: title).fontWeight(.medium)
-                Text(verbatim: "\(detail) · \(hookStatus.label)").font(.system(size: 11)).foregroundColor(.secondary)
+        LabeledContent {
+            HStack(spacing: 8) {
+                StatusPill(text: hookStatus.label, tone: hookStatus == .installed ? .good : .warning)
+                if hookStatus != .installed {
+                    Button(hookStatus == .missing ? "Install…" : "Repair…", action: install).buttonStyle(.borderedProminent)
+                }
+                if hookStatus == .installed || hookStatus == .outdated {
+                    Button("Remove…", action: remove)
+                }
             }
-            Spacer()
-            if hookStatus != .installed {
-                Button(hookStatus == .missing ? "Install…" : "Repair…", action: install)
-            }
-            if hookStatus == .installed || hookStatus == .outdated {
-                Button("Remove…", action: remove)
-            }
+        } label: {
+            Text(verbatim: title)
+            Text(verbatim: detail)
         }
     }
 
     private func soundPicker(_ title: String, selection: Binding<Preferences.SoundChoice>) -> some View {
-        HStack {
-            Picker(title, selection: selection) {
-                ForEach(Preferences.SoundChoice.allCases, id: \.self) { Text(verbatim: $0.rawValue).tag($0) }
-            }
-            .frame(maxWidth: 340)
-            Button {
-                SoundPlayer.play(selection.wrappedValue, volume: preferences.soundVolume)
-            } label: {
-                Image(systemName: "play.fill")
+        LabeledContent(title) {
+            HStack(spacing: 6) {
+                Picker(title, selection: selection) {
+                    ForEach(Preferences.SoundChoice.allCases, id: \.self) { Text(verbatim: $0.rawValue).tag($0) }
+                }
+                .labelsHidden()
+                .frame(width: 140)
+                Button {
+                    SoundPlayer.play(selection.wrappedValue, volume: preferences.soundVolume)
+                } label: {
+                    Image(systemName: "play.fill")
+                }
+                .help("Play \(selection.wrappedValue.rawValue)")
             }
         }
         .disabled(!preferences.soundsEnabled)
     }
 
     private func shortcutLine(_ keys: String, _ meaning: String) -> some View {
-        HStack {
-            Text(verbatim: keys).font(.system(size: 12, design: .monospaced)).frame(width: 110, alignment: .leading)
-            Text(verbatim: meaning).foregroundColor(.secondary)
+        LabeledContent(meaning) {
+            Text(verbatim: keys)
+                .font(.system(size: 12, weight: .medium, design: .rounded))
+                .padding(.horizontal, 8)
+                .padding(.vertical, 3)
+                .background(RoundedRectangle(cornerRadius: 6, style: .continuous).fill(Color.primary.opacity(0.08)))
+        }
+        .disabled(!preferences.shortcutsEnabled)
+    }
+
+    private func creditRow(_ name: String, _ detail: String, url: String) -> some View {
+        LabeledContent {
+            Link(destination: URL(string: url)!) { Image(systemName: "arrow.up.right.square") }
+                .help(url)
+        } label: {
+            Text(verbatim: name)
+            Text(verbatim: detail)
         }
     }
 
-    private func hint(_ text: String) -> some View {
-        Text(verbatim: text).font(.system(size: 11)).foregroundColor(.secondary).fixedSize(horizontal: false, vertical: true)
+    private func footnote(_ text: String) -> some View {
+        Text(verbatim: text).font(.footnote).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
+    }
+
+    // MARK: - Status values
+
+    private var serverTone: StatusPill.Tone {
+        switch status.serverStatus {
+        case .ready: return .good
+        case .starting: return .neutral
+        case .failed: return .bad
+        }
+    }
+
+    private var calendarAccessText: String {
+        switch status.calendarAccess {
+        case .notAsked: return "Asked when you turn it on"
+        case .allowed: return "Allowed"
+        case .denied: return "Not allowed"
+        }
+    }
+
+    private var calendarAccessTone: StatusPill.Tone {
+        switch status.calendarAccess {
+        case .notAsked: return .neutral
+        case .allowed: return .good
+        case .denied: return .warning
+        }
+    }
+
+    /// "/Users/me/.claude" as "~/.claude".
+    private static func tilde(_ path: String) -> String { (path as NSString).abbreviatingWithTildeInPath }
+}
+
+/// One sidebar entry: icon and name, filled with the accent color when selected, tinted on hover.
+struct SidebarRow: View {
+    let page: SettingsWindowView.Page
+    let isSelected: Bool
+    let action: () -> Void
+    @State private var isHovered = false
+
+    var body: some View {
+        Button(action: action) {
+            HStack(spacing: 9) {
+                PageIcon(page: page, size: 22)
+                Text(verbatim: page.rawValue)
+                    .font(.system(size: 13, weight: isSelected ? .semibold : .regular))
+                    .foregroundStyle(isSelected ? Color.white : Color.primary)
+                Spacer(minLength: 0)
+            }
+            .padding(.horizontal, 8)
+            .padding(.vertical, 6)
+            .background(RoundedRectangle(cornerRadius: 8, style: .continuous)
+                .fill(isSelected ? Color.accentColor : Color.primary.opacity(isHovered ? 0.07 : 0)))
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .onHover { hovering in withAnimation(.easeOut(duration: 0.12)) { isHovered = hovering } }
+        .animation(.easeOut(duration: 0.15), value: isSelected)
+    }
+}
+
+/// The colored rounded square with a white symbol, used in the sidebar and the page header.
+struct PageIcon: View {
+    let page: SettingsWindowView.Page
+    let size: CGFloat
+
+    var body: some View {
+        Image(systemName: page.icon.name)
+            .foregroundStyle(.white)
+            .font(.system(size: size * 0.55, weight: .semibold))
+            .frame(width: size, height: size)
+            .background(RoundedRectangle(cornerRadius: size * 0.26, style: .continuous)
+                .fill(LinearGradient(colors: [Color(hex: page.icon.color).opacity(0.85), Color(hex: page.icon.color)],
+                                     startPoint: .top, endPoint: .bottom)))
     }
 }
