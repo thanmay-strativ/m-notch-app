@@ -60,3 +60,11 @@ fastlane/report.xml
 fastlane/Preview.html
 fastlane/screenshots/**/*.png
 fastlane/test_output
+
+## m_notch
+build/
+dist/
+.swiftpm/
+.idea/
+.vscode/
+.DS_Store
