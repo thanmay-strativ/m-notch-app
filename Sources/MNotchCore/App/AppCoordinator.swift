@@ -32,6 +32,7 @@ final class AppCoordinator: NSObject, NSApplicationDelegate {
         refreshHookStatus()
         watchSettingsFolders()
         menuBar = MenuBarController(coordinator: self)
+        pointLoginItemHere()
         scheduleUpdateChecks()
         offerWelcome()
     }
@@ -73,6 +74,12 @@ final class AppCoordinator: NSObject, NSApplicationDelegate {
             status.launchAtLoginError = error.localizedDescription
             preferences.launchAtLogin = SMAppService.mainApp.status == .enabled
         }
+    }
+
+    /// macOS keeps the login item at the path it was turned on from, so after the app moves
+    /// (say from Downloads into Applications) it would open a missing app at login. Registering again points it here.
+    private func pointLoginItemHere() {
+        if SMAppService.mainApp.status == .enabled { setLaunchAtLogin(true) }
     }
 
     func openSettingsWindow(at page: SettingsWindowView.Page? = nil) {
