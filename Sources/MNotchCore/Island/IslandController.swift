@@ -3,6 +3,7 @@
 
 import AppKit
 import SwiftUI
+import os
 
 /// Borderless, non-activating panel that may sit over the menu bar and the notch.
 final class IslandPanel: NSPanel {
@@ -23,6 +24,7 @@ final class IslandController {
     static let idlePoll: TimeInterval = 1.0 / 8.0
     static let celebrateDuration: TimeInterval = 5.2
     static let finishedOpenDuration: TimeInterval = 5
+    static let finishedOpenGrace: TimeInterval = 3
 
     let model: IslandModel
     let store: SessionStore
@@ -34,6 +36,7 @@ final class IslandController {
     private let actions: IslandActions
     private let hotKeys = HotKeys()
     private let machine = IslandStateMachine()
+    private let logger = Logger(subsystem: "local.mnotch", category: "island")
     private let panel: IslandPanel
     private var pollTimer: Timer?
     private var pollInterval: TimeInterval = 0
@@ -126,6 +129,7 @@ final class IslandController {
         }
         machine.onTransition = { [weak self] oldState, newState in
             guard let self else { return }
+            self.logger.debug("Island \(String(describing: oldState), privacy: .public) -> \(String(describing: newState), privacy: .public)")
             withAnimation(newState < oldState ? IslandAnimation.close : IslandAnimation.open) {
                 self.model.mode = newState
             }
@@ -166,6 +170,7 @@ final class IslandController {
     }
 
     private func handle(_ signal: StoreSignal) {
+        logger.debug("Signal \(String(describing: signal), privacy: .public)")
         switch signal {
         case .activity(let sessionId):
             guard preferences.revealOnActivity, let session = store.sessions[sessionId], !isQuiet(for: session) else { return }
@@ -174,7 +179,8 @@ final class IslandController {
             celebrate(as: .finished)
             if preferences.soundsEnabled { SoundPlayer.play(preferences.finishedSound, volume: preferences.soundVolume) }
             guard preferences.revealOnFinish, let session = store.sessions[sessionId], !isQuiet(for: session) else { return }
-            if preferences.openOnFinish { machine.popOpen(for: Self.finishedOpenDuration) } else { machine.reveal() }
+            machine.reveal()
+            if preferences.openOnFinish { openFullyOnceAllAreDone() }
         case .requestsChanged:
             if store.pending.count > lastPendingCount {
                 model.showingSettings = false
@@ -200,6 +206,17 @@ final class IslandController {
                                  volume: preferences.soundVolume)
             }
             if preferences.revealOnFinish { machine.reveal() }
+        }
+    }
+
+    /// A finished turn while another session still works only peeks: you are probably watching that one.
+    /// The check waits `finishedOpenGrace`, so a background agent carrying on (its tools arrive under the same session) cancels it.
+    private func openFullyOnceAllAreDone() {
+        DispatchQueue.main.asyncAfter(deadline: .now() + Self.finishedOpenGrace) { [weak self] in
+            MainActor.assumeIsolated {
+                guard let self, !self.store.isAnySessionBusy, self.store.pending.isEmpty else { return }
+                self.machine.popOpen(for: Self.finishedOpenDuration)
+            }
         }
     }
 

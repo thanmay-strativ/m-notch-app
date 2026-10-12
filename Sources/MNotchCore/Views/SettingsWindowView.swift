@@ -143,7 +143,7 @@ struct SettingsWindowView: View {
             Section("Peek out") {
                 toggle("When a session starts working", isOn: preferences.revealOnActivity)
                 toggle("When a session finishes", isOn: preferences.revealOnFinish)
-                toggle("Open it fully when it finishes", "Shows the whole island for 5 seconds, not just the small one", isOn: preferences.openOnFinish)
+                toggle("Open it fully when all are done", "Shows the whole island for 5 seconds once no session is still working", isOn: preferences.openOnFinish)
                     .disabled(!self.preferences.revealOnFinish)
                 toggle("Stay quiet when its IDE is in front", "No peeking while you are already looking at that window", isOn: preferences.quietWhenLooking)
                 toggle("Nudge once after 2 minutes of waiting", isOn: preferences.nudgeEnabled)

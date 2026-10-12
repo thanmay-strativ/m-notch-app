@@ -51,6 +51,7 @@ public final class SessionStore {
 
     public func handle(_ event: HookEvent, responder: HookResponder?) {
         lastEventAt = now()
+        logger.debug("Hook \(event.name, privacy: .public) \(event.toolName ?? "", privacy: .public) in session \(event.sessionId, privacy: .public)")
         upsertSession(for: event)
         switch event.name {
         case "UserPromptSubmit":

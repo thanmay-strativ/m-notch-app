@@ -113,6 +113,16 @@ struct SessionStoreTests {
         #expect(signals.last == .finished(sessionId: "s1"))
     }
 
+    @Test func oneSessionFinishingWhileAnotherWorksIsStillBusy() {
+        let (store, _) = makeStore(clockStart: clock)
+        store.handle(event("UserPromptSubmit", session: "s1"), responder: nil)
+        store.handle(event("UserPromptSubmit", session: "s2"), responder: nil)
+        store.handle(event("Stop", session: "s1"), responder: nil)
+        #expect(store.isAnySessionBusy)
+        store.handle(event("Stop", session: "s2"), responder: nil)
+        #expect(!store.isAnySessionBusy)
+    }
+
     @Test func silentSessionStopsCountingAsBusyAfter30Minutes() {
         let store = SessionStore()
         nonisolated(unsafe) var current = clock
