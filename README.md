@@ -2,6 +2,10 @@
   <img src="docs/media/hero.gif" width="720" alt="The m_notch island opening under the MacBook notch to show three Claude Code sessions">
 </p>
 
+<p align="center">
+  <img src="docs/media/logo.png" width="128" alt="The m_notch logo: Pip glowing inside a black notch island">
+</p>
+
 <h1 align="center">m_notch</h1>
 
 <p align="center">
