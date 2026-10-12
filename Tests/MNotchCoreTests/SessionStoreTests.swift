@@ -59,6 +59,19 @@ struct SessionStoreTests {
         #expect(responder.replies == [nil])
     }
 
+    @Test func backgroundReportKeepsTheCardButATypedPromptDismissesIt() {
+        let (store, _) = makeStore(clockStart: clock)
+        let responder = RecordingResponder()
+        store.handle(event("PermissionRequest", tool: "Bash", input: #"{"command":"ls"}"#), responder: responder)
+        store.handle(event("UserPromptSubmit", extra: #""prompt":"<agent-message from=\"a1\">\n  done\n</agent-message>","#), responder: nil)
+        store.handle(event("UserPromptSubmit", extra: #""prompt":"<task-notification>\n<status>completed</status>","#), responder: nil)
+        #expect(store.pending.count == 1)
+        #expect(store.sessions["s1"]?.state == .needsYou)
+        store.handle(event("UserPromptSubmit", extra: #""prompt":"never mind, do it differently","#), responder: nil)
+        #expect(store.pending.isEmpty)
+        #expect(responder.replies == [nil])
+    }
+
     @Test func closedConnectionRemovesTheCardWithoutReplying() {
         let (store, _) = makeStore(clockStart: clock)
         let responder = RecordingResponder()

@@ -147,7 +147,7 @@ These are command hooks: `curl -s -m 300 --data-binary @- -H 'Authorization: Bea
 | Event | Reaction |
 |---|---|
 | SessionStart | create the session: name = last path component of the project root, host from headers |
-| UserPromptSubmit | state thinking, clear the finished line |
+| UserPromptSubmit | state thinking, clear the finished line, dismiss the session's open cards (you answered in the terminal). A background report (`prompt` starts with `<agent-message ` or `<task-notification>`, since 0.2.5) leaves open cards alone |
 | PreToolUse | state working, step text (for example "Edit views.py", "Bash: npm test"). For `AskUserQuestion` on the matcher entry: hold. |
 | PostToolUse | Edit/MultiEdit/Write: record a diff. Dismiss a pending approval with the same session, tool and input. |
 | Notification | `idle_prompt`: state needsYou |

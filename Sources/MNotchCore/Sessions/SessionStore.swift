@@ -54,6 +54,8 @@ public final class SessionStore {
         logger.debug("Hook \(event.name, privacy: .public) \(event.toolName ?? "", privacy: .public) in session \(event.sessionId, privacy: .public)")
         upsertSession(for: event)
         switch event.name {
+        case "UserPromptSubmit" where event.isBackgroundReport && pending.contains(where: { $0.sessionId == event.sessionId }):
+            break
         case "UserPromptSubmit":
             update(event.sessionId) { $0.state = .thinking; $0.stepText = "Thinking"; $0.finishedLine = ""; $0.waitingNudged = false }
             dismissRequests(inSession: event.sessionId)

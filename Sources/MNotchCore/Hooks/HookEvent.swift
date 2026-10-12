@@ -50,6 +50,7 @@ public struct HookEvent: Sendable {
     public let permissionSuggestions: JSONValue?
     public let notificationType: String?
     public let lastAssistantMessage: String?
+    public let prompt: String?
     public let hints: HostHints
     public let isQuestionHook: Bool
 
@@ -69,8 +70,15 @@ public struct HookEvent: Sendable {
         self.permissionSuggestions = body["permission_suggestions"]
         self.notificationType = body["notification_type"]?.stringValue
         self.lastAssistantMessage = body["last_assistant_message"]?.stringValue
+        self.prompt = body["prompt"]?.stringValue
         self.hints = hints
         self.isQuestionHook = isQuestionHook
+    }
+
+    /// A prompt Claude Code wrote itself to hand a background agent's report or a finished task to the session, not one you typed.
+    public var isBackgroundReport: Bool {
+        guard name == "UserPromptSubmit", let prompt else { return false }
+        return prompt.hasPrefix("<agent-message ") || prompt.hasPrefix("<task-notification>")
     }
 
     public var holdsConnection: Bool {
