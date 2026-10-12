@@ -131,6 +131,14 @@ struct IslandStateMachineTests {
         #expect(machine.state == .hidden)
     }
 
+    @Test func finishedSessionPopsOpenThenShrinksToCompact() {
+        let (machine, scheduler, transitions) = makeMachine()
+        machine.popOpen(for: 5)
+        #expect(scheduler.delays.last == 5)
+        scheduler.fireAll()
+        #expect(transitions() == [.expanded, .compact])
+    }
+
     @Test func openOnHoverSkipsThePeek() {
         let (machine, _, transitions) = makeMachine()
         machine.openOnHover = true

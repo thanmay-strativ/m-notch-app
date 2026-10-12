@@ -22,6 +22,7 @@ final class IslandController {
     static let fastPoll: TimeInterval = 1.0 / 60.0
     static let idlePoll: TimeInterval = 1.0 / 8.0
     static let celebrateDuration: TimeInterval = 5.2
+    static let finishedOpenDuration: TimeInterval = 5
 
     let model: IslandModel
     let store: SessionStore
@@ -173,7 +174,7 @@ final class IslandController {
             celebrate(as: .finished)
             if preferences.soundsEnabled { SoundPlayer.play(preferences.finishedSound, volume: preferences.soundVolume) }
             guard preferences.revealOnFinish, let session = store.sessions[sessionId], !isQuiet(for: session) else { return }
-            machine.reveal()
+            if preferences.openOnFinish { machine.popOpen(for: Self.finishedOpenDuration) } else { machine.reveal() }
         case .requestsChanged:
             if store.pending.count > lastPendingCount {
                 model.showingSettings = false

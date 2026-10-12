@@ -80,6 +80,14 @@ public final class IslandStateMachine {
         if !isPointerInside { scheduleSettle(after: activityHold) }
     }
 
+    /// Opens fully for `duration` (unless the pointer comes in), then shrinks to compact like `reveal`.
+    public func popOpen(for duration: TimeInterval) {
+        holdCompact(for: activityHold)
+        cancelSettle()
+        transition(to: .expanded)
+        if !isPointerInside { scheduleSettle(after: duration) }
+    }
+
     public func expand() {
         cancelSettle()
         transition(to: .expanded)

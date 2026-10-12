@@ -63,6 +63,7 @@ final class Preferences {
 
     var revealOnActivity: Bool { didSet { save(revealOnActivity, "revealOnActivity") } }
     var revealOnFinish: Bool { didSet { save(revealOnFinish, "revealOnFinish") } }
+    var openOnFinish: Bool { didSet { save(openOnFinish, "openOnFinish") } }
     var quietWhenLooking: Bool { didSet { save(quietWhenLooking, "quietWhenLooking") } }
     var answerInNotch: Bool { didSet { save(answerInNotch, "answerInNotch") } }
     var touchIdForRisky: Bool { didSet { save(touchIdForRisky, "touchIdForRisky") } }
@@ -105,6 +106,7 @@ final class Preferences {
         showDiffChips = bool("showDiffChips", true)
         revealOnActivity = bool("revealOnActivity", true)
         revealOnFinish = bool("revealOnFinish", true)
+        openOnFinish = bool("openOnFinish", true)
         quietWhenLooking = bool("quietWhenLooking", true)
         answerInNotch = bool("answerInNotch", true)
         touchIdForRisky = bool("touchIdForRisky", true)
@@ -116,7 +118,7 @@ final class Preferences {
         autoCheckUpdates = bool("autoCheckUpdates", true)
         claudeFolder = string("claudeFolder")
         codexFolder = string("codexFolder")
-        soundsEnabled = bool("soundsEnabled", false)
+        soundsEnabled = bool("soundsEnabled", true)
         needsYouSound = SoundChoice(rawValue: string("needsYouSound")) ?? .glass
         finishedSound = SoundChoice(rawValue: string("finishedSound")) ?? .pop
         soundVolume = double("soundVolume", 0.6)
