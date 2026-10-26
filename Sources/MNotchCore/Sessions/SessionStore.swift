@@ -123,6 +123,15 @@ public final class SessionStore {
         update(request.sessionId) { $0.state = .working }
     }
 
+    public func skip(_ requestId: UUID) {
+        guard let request = pending.first(where: { $0.id == requestId }), case .question = request.kind else {
+            logger.warning("Skip for request \(requestId, privacy: .public) ignored: no pending question with that id")
+            return
+        }
+        finish(requestId, reply: HookReply.skippedQuestion())
+        update(request.sessionId) { $0.state = .working }
+    }
+
     public func replyInTerminal(_ requestId: UUID) {
         finish(requestId, reply: nil)
     }
@@ -214,7 +223,11 @@ public final class SessionStore {
         }
         let toolName = event.toolName ?? "Unknown tool"
         let kind: PendingKind
-        if toolName == "AskUserQuestion", let question = AskQuestion.parse(toolInput: event.toolInput) {
+        if toolName == "AskUserQuestion" && !event.isQuestionHook {
+            logger.info("Permission for AskUserQuestion in session \(event.sessionId, privacy: .public) left to the terminal: its question card got no answer")
+            responder.reply(nil)
+            return
+        } else if toolName == "AskUserQuestion", let question = AskQuestion.parse(toolInput: event.toolInput) {
             kind = .question(question)
         } else if toolName == "AskUserQuestion" {
             logger.warning("AskUserQuestion in session \(event.sessionId, privacy: .public) has an unexpected shape, left to the terminal")

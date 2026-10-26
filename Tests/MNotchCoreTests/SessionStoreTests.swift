@@ -114,6 +114,29 @@ struct SessionStoreTests {
         #expect(responder.lastReplyText?.contains(#""answers":{"Which size?":"L"}"#) == true)
     }
 
+    @Test func skippedQuestionTellsClaudeToCarryOn() {
+        let (store, _) = makeStore(clockStart: clock)
+        let input = #"{"questions":[{"question":"Which size?","options":[{"label":"S"},{"label":"L"}]}]}"#
+        let responder = RecordingResponder()
+        store.handle(event("PreToolUse", tool: "AskUserQuestion", input: input, question: true), responder: responder)
+        store.skip(responder.id)
+        #expect(store.pending.isEmpty)
+        #expect(responder.lastReplyText?.contains(#""permissionDecision":"deny""#) == true)
+        #expect(responder.lastReplyText?.contains("skipped this question") == true)
+    }
+
+    @Test func questionSentToTheTerminalDoesNotComeBackAsACard() {
+        let (store, _) = makeStore(clockStart: clock)
+        let input = #"{"questions":[{"question":"Which size?","options":[{"label":"S"},{"label":"L"}]}]}"#
+        let questionHook = RecordingResponder()
+        store.handle(event("PreToolUse", tool: "AskUserQuestion", input: input, question: true), responder: questionHook)
+        store.replyInTerminal(questionHook.id)
+        let permission = RecordingResponder()
+        store.handle(event("PermissionRequest", tool: "AskUserQuestion", input: input), responder: permission)
+        #expect(store.pending.isEmpty)
+        #expect(permission.replies == [nil])
+    }
+
     @Test func stopMarksDoneWithFirstLineAndReadsContext() {
         let (store, _) = makeStore(clockStart: clock)
         var signals: [StoreSignal] = []

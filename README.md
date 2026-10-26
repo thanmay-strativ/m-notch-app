@@ -87,7 +87,7 @@ Hover the notch to peek, click to open. Each row shows the project, what Claude 
 
 ### Answer without switching windows
 
-Permission requests, Claude's multiple-choice questions and plans (Approve plan, Keep planning) show as cards. Risky commands (`rm -rf`, `sudo`, `git push --force`, writes to `.env` or outside the project) turn the card red and ask for Touch ID.
+Permission requests, Claude's multiple-choice questions and plans (Approve plan, Keep planning) show as cards. A question you don't want to answer has Skip: Claude carries on with its own judgment. Risky commands (`rm -rf`, `sudo`, `git push --force`, writes to `.env` or outside the project) turn the card red and ask for Touch ID.
 
 <p align="center"><img src="docs/media/island-permission.png" width="720" alt="A permission card asking to run a command, with Allow, Always and Deny buttons"></p>
 
@@ -95,7 +95,7 @@ Changed a file? Click its chip (`views.py +12 -3`) to see the diff, then **Open 
 
 ### Small while you work
 
-When you move the pointer away, the island shrinks to a small bar: your buddy on the left, one dot per session on the right (orange means it needs you). After a few quiet seconds it hides completely.
+When you move the pointer away, the island shrinks to a small bar: your buddy on the left, and on the right a check or a cross when a long terminal command ends, or an orange count when requests wait for you. After a few quiet seconds it hides completely.
 
 <p align="center"><img src="docs/media/island-compact.png" width="720" alt="The small island with the character and session dots"></p>
 

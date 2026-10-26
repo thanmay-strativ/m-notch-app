@@ -38,6 +38,8 @@ struct QuestionCardView: View {
                             .opacity(currentSelection.isEmpty ? 0.5 : 1)
                     }
                     Spacer(minLength: 4)
+                    PillButton(title: "Skip", style: .secondary) { actions.skip(request) }
+                        .help("Claude carries on without an answer")
                     TerminalLink { actions.replyInTerminal(request) }
                 }
             }

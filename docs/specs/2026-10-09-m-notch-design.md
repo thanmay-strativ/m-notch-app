@@ -153,7 +153,7 @@ These are command hooks: `curl -s -m 300 --data-binary @- -H 'Authorization: Bea
 | Notification | `idle_prompt`: state needsYou |
 | Stop | state done, finished line = first line of `last_assistant_message`; dismiss the session's pending requests |
 | SessionEnd | remove the session and dismiss its pending requests |
-| PermissionRequest | hold: queue a request, show the card |
+| PermissionRequest | hold: queue a request, show the card. For `AskUserQuestion`: reply at once with an empty body, so the terminal asks (since 0.2.6). Claude Code sends it only after the `/ask` hook got no answer, for example after Reply in terminal, and a question card could not answer it (its reply is PreToolUse-shaped), so showing it made the card look stuck |
 
 An event for an unknown `session_id` creates the session on the fly.
 
@@ -164,6 +164,7 @@ An event for an unknown `session_id` creates the session on the fly.
 - Always: Allow plus `"updatedPermissions": <permission_suggestions>`. The button is shown only if suggestions exist and the agent is Claude.
 - Deny: `{"hookSpecificOutput":{"hookEventName":"PermissionRequest","decision":{"behavior":"deny","message":"Denied from m_notch"}}}`
 - Reply in terminal / timeout / dismiss: `200` with an empty body.
+- Skip (question cards, since 0.2.6): `{"hookSpecificOutput":{"hookEventName":"PreToolUse","permissionDecision":"deny","permissionDecisionReason":"The user skipped this question. Continue without the answer, using your best judgment."}}`
 - Question: `{"hookSpecificOutput":{"hookEventName":"PreToolUse","permissionDecision":"allow","updatedInput":{"questions":<original>,"answers":{"<question text>":"<label>"}}}}`. Multi-select answers are a list of labels (coucou's tested behavior on Claude Code 2.1.136 and later). This needs a manual check, see section 11.
 - Plan (ExitPlanMode through PermissionRequest): Approve plan = Allow. Keep planning = Deny with the message "Keep planning, the user wants changes."
 

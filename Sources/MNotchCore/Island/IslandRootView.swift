@@ -180,7 +180,7 @@ struct IslandContainer: View {
 }
 
 /// Right ear of the compact island: a terminal command result for a minute after it ends,
-/// otherwise one dot per session (orange when one needs you).
+/// otherwise how many requests wait for you (nothing when none do).
 struct CompactStatusView: View {
     static let commandFreshness: TimeInterval = 60
     let store: SessionStore
@@ -191,22 +191,7 @@ struct CompactStatusView: View {
                context.date.timeIntervalSince(command.finishedAt) < Self.commandFreshness {
                 earLabel(icon: command.succeeded ? "checkmark" : "xmark", text: command.durationText,
                          color: command.succeeded ? Palette.done : Palette.danger)
-            } else {
-                sessionDots
-            }
-        }
-    }
-
-    private var sessionDots: some View {
-        let sessions = Array(store.sortedSessions.prefix(4))
-        return HStack(spacing: 4) {
-            if sessions.isEmpty {
-                Circle().fill(Palette.tertiary).frame(width: 6, height: 6)
-            }
-            ForEach(sessions) { session in
-                StatusDot(state: session.state)
-            }
-            if !store.pending.isEmpty {
+            } else if !store.pending.isEmpty {
                 Text(verbatim: "\(store.pending.count)")
                     .font(.system(size: 10, weight: .bold)).foregroundColor(Palette.needsYou)
             }

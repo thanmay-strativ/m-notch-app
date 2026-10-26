@@ -68,7 +68,7 @@ enum IslandLayout {
     static let compactEarWidth: CGFloat = 80
     static let compactCorner: CGFloat = 14
     static let expandedCorner: CGFloat = 22
-    static let contentLeading: CGFloat = 112
+    static let contentLeading: CGFloat = 82
     static let rowHeight: CGFloat = 44
     static let rowHeightWithStats: CGFloat = 58
     /// A one-line meeting or terminal command row above the sessions, spacing included.
@@ -154,8 +154,8 @@ enum IslandLayout {
             return BotPlacement(center: CGPoint(x: 40, y: islandSize.height / 2), diameter: restingDiameter, opacity: 1)
         case .expanded:
             let top = contentTop(notchHeight: notchHeight)
-            let centerY = min(top + 54, top + (islandSize.height - top) / 2)
-            return BotPlacement(center: CGPoint(x: 58, y: centerY), diameter: 54, opacity: 1)
+            let centerY = min(top + 40, top + (islandSize.height - top) / 2)
+            return BotPlacement(center: CGPoint(x: 42, y: centerY), diameter: 36, opacity: 1)
         }
     }
 

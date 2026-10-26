@@ -68,6 +68,8 @@ final class IslandActions {
 
     func replyInTerminal(_ request: PendingRequest) { store.replyInTerminal(request.id) }
 
+    func skip(_ request: PendingRequest) { store.skip(request.id) }
+
     func hideRequests() { model.requestsHidden = true }
 
     func join(_ event: CalendarEvent) {
